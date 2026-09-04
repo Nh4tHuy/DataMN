@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Lưu Trữ Tài Liệu Số</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    
+    <!-- Script kiểm tra Dark Mode ngay lúc load để tránh chớp màn hình -->
+    <script>
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class', // Kích hoạt Dark Mode bằng class
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Dark Mode Scrollbar */
+        .dark ::-webkit-scrollbar-thumb { background: #475569; }
+        .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        .data-table th {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        #fileModal {
+            backdrop-filter: blur(4px);
+            transition: opacity 0.3s ease;
+        }
+        #fileModal.hidden { opacity: 0; pointer-events: none; }
+        
+        .loading-overlay { backdrop-filter: blur(2px); }
+        .spin { animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col overflow-hidden h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+
+    <!-- Top Navbar -->
+    <nav class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 h-16 flex items-center justify-between px-6 shrink-0 z-20 shadow-sm relative transition-colors">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded bg-brand-600 flex items-center justify-center text-white font-bold text-xl shadow">
+                D
+            </div>
+            <div>
+                <h1 class="font-bold text-lg text-slate-800 dark:text-white leading-tight">HỆ THỐNG LƯU TRỮ TÀI LIỆU SỐ</h1>
+                <p class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">Trường Mầm Non Mỹ An</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <!-- Nút chuyển đổi Dark Mode -->
+            <button id="themeToggle" class="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Bật/Tắt Giao diện tối">
+                <i class="ph-duotone ph-moon text-xl dark:hidden"></i>
+                <i class="ph-duotone ph-sun text-xl hidden dark:block"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main App Container (Removed Sidebar) -->
+    <div class="flex flex-1 overflow-hidden">
+        
+        <!-- Content Area (Full Width) -->
+        <main class="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 relative transition-colors w-full">
+            
+            <!-- Breadcrumb -->
+            <div class="h-14 border-b border-slate-200 dark:border-slate-700 px-6 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-slate-800 transition-colors">
+                <div class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400" id="breadcrumb">
+                    <!-- Sẽ được fill bằng JS -->
+                    <button class="hover:text-brand-600 dark:hover:text-brand-400 font-medium flex items-center gap-1">
+                        <i class="ph-fill ph-house"></i> Trang chủ
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="flex-1 overflow-auto p-4 sm:p-6 relative max-w-7xl mx-auto w-full">
+                
+                <!-- Loading State -->
+                <div id="loadingOverlay" class="absolute inset-0 bg-white/80 dark:bg-slate-900/80 loading-overlay z-20 flex flex-col items-center justify-center">
+                    <i class="ph-duotone ph-spinner-gap text-4xl text-brand-500 spin mb-3"></i>
+                    <p class="text-slate-600 dark:text-slate-300 font-medium">Đang tải và đồng bộ dữ liệu, vui lòng chờ...</p>
+                </div>
+
+                <div class="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-800 transition-colors">
+                    
+                    <!-- Table Header & Toolbar (New Compact Filters) -->
+                    <div class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        <div class="flex items-center gap-3">
+                            <h2 class="font-semibold text-slate-800 dark:text-slate-200" id="currentViewTitle">Danh sách tài liệu</h2>
+                            <span class="text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 py-1 px-2 rounded-full" id="itemCount">0 mục</span>
+                        </div>
+                        
+                        <!-- Mini Toolbar (Search, Filter, Sort) -->
+                        <div class="flex flex-wrap items-center gap-2">
+                            <!-- Search -->
+                            <div class="relative flex-grow md:flex-grow-0">
+                                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                <input type="text" id="searchInput" placeholder="Tìm tên file..." 
+                                       class="w-full md:w-56 pl-9 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-shadow">
+                            </div>
+                            <!-- Format Filter -->
+                            <select id="typeFilterSelect" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm rounded-lg py-1.5 px-3 focus:outline-none focus:border-brand-500">
+                                <option value="all">Tất cả định dạng</option>
+                                <option value="folder">Thư mục</option>
+                                <option value="pdf">PDF</option>
+                                <option value="doc">Word/Excel/PPT</option>
+                            </select>
+                            <!-- Sort -->
+                            <select id="sortSelect" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm rounded-lg py-1.5 px-3 focus:outline-none focus:border-brand-500 hidden sm:block">
+                                <option value="name_asc">Tên (A-Z)</option>
+                                <option value="name_desc">Tên (Z-A)</option>
+                                <option value="size_desc">Dung lượng lớn</option>
+                                <option value="size_asc">Dung lượng nhỏ</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto min-h-[400px]">
+                        <table class="w-full text-left border-collapse data-table whitespace-nowrap">
+                            <thead>
+                                <tr>
+                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 w-16 text-center">STT</th>
+                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 w-16 text-center">Loại</th>
+                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 min-w-[250px]">Tên tài liệu / Thư mục</th>
+                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">Kích thước</th>
+                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-right">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody" class="text-sm">
+                                <!-- Data rows will be injected here -->
+                            </tbody>
+                        </table>
+                        
+                        <!-- Empty State Table -->
+                        <div id="emptyStateTable" class="hidden flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
+                            <i class="ph-duotone ph-folder-dashed text-5xl mb-3"></i>
+                            <p class="font-medium text-slate-600 dark:text-slate-400">Không có dữ liệu</p>
+                            <p class="text-sm mt-1">Thư mục trống hoặc không tìm thấy kết quả phù hợp.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <footer class="h-10 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0 transition-colors">
+                <p class="text-xs text-slate-500 dark:text-slate-400">
+                    &copy; 2026 Hệ thống Lưu trữ tài liệu số. Bản quyền thuộc <span class="font-medium text-brand-600 dark:text-brand-400">Nh4tHuy</span>.
+                </p>
+            </footer>
+        </main>
+    </div>
+
+    <!-- Modal Xem Thông Tin File -->
+    <div id="fileModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden bg-slate-900/50 dark:bg-black/60">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative border border-transparent dark:border-slate-700 transition-colors">
+            <div class="h-24 bg-brand-50 dark:bg-slate-900/50 border-b border-brand-100 dark:border-slate-700 relative">
+                <button onclick="closeModal()" class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors shadow-sm">
+                    <i class="ph-bold ph-x"></i>
+                </button>
+            </div>
+            <div class="px-6 pb-6 relative">
+                <div id="modalIcon" class="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-4xl shadow-md absolute -top-8 left-6">
+                    <i class="ph-duotone ph-file text-brand-600 dark:text-brand-400"></i>
+                </div>
+                
+                <div class="pt-10">
+                    <h2 id="modalFileName" class="text-xl font-bold text-slate-900 dark:text-white mb-1 break-words">Tên file.pdf</h2>
+                    <p class="text-sm text-brand-600 dark:text-brand-400 font-medium mb-6 flex items-center gap-1">
+                        <i class="ph-fill ph-check-circle"></i> Có thể tải xuống
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3 mb-6">
+                    <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 border border-slate-100 dark:border-slate-600/50">
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-1 font-medium">Định dạng</p>
+                        <p id="modalFileType" class="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase">PDF</p>
+                    </div>
+                    <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 border border-slate-100 dark:border-slate-600/50">
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-1 font-medium">Dung lượng</p>
+                        <p id="modalFileSize" class="text-sm font-bold text-slate-800 dark:text-slate-200">2.5 MB</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-3">
+                    <button onclick="closeModal()" class="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
+                        Đóng
+                    </button>
+                    <a id="modalDownloadBtn" href="#" target="_blank" class="flex-1 bg-brand-600 dark:bg-brand-500 text-white py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-brand-700 dark:hover:bg-brand-600 transition-colors shadow-sm shadow-brand-500/30">
+                        <i class="ph-bold ph-download-simple"></i> Tải Ngay
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxRZeIwoHu9XxzO0EqWBIfEwC5reS-2h9iLyQEFGL8rXp30AgtAohk5iO-Ww8-SBrg/exec';
+        
+        let globalData = [];
+        let currentFolderId = 'root'; 
+        let currentSearchQuery = '';
+        let currentFilterType = 'all';
+
+        // Xử lý nút Dark Mode
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            if (document.documentElement.classList.contains('dark')) {
+                localStorage.theme = 'dark';
+            } else {
+                localStorage.theme = 'light';
+            }
+        });
+
+        async function loadData() {
+            try {
+                showLoading(true);
+                const response = await fetch(`${APPS_SCRIPT_URL}?action=getData`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+
+                if (!response.ok) throw new Error('Network response was not ok');
+                const rawData = await response.json();
+                
+                globalData = rawData.data ? rawData.data : rawData;
+                renderView();
+            } catch (error) {
+                console.error("Fetch Data Error:", error);
+                document.querySelector('#loadingOverlay p').textContent = "Lỗi tải dữ liệu. Vui lòng thử lại sau.";
+                document.querySelector('#loadingOverlay p').classList.add('text-red-500');
+                document.querySelector('.spin').classList.replace('text-brand-500', 'text-red-500');
+                document.querySelector('.spin').classList.replace('ph-spinner-gap', 'ph-warning-circle');
+            } finally {
+                if(globalData.length > 0) showLoading(false);
+            }
+        }
+
+        function showLoading(show) {
+            const overlay = document.getElementById('loadingOverlay');
+            if(show) overlay.classList.remove('hidden');
+            else overlay.classList.add('hidden');
+        }
+
+        function getIcon(type) {
+            const base = "text-2xl";
+            switch(type) {
+                case 'folder': return `<i class="ph-fill ph-folder ${base} text-amber-400"></i>`;
+                case 'pdf': return `<i class="ph-duotone ph-file-pdf ${base} text-rose-500"></i>`;
+                case 'docx': case 'doc': return `<i class="ph-duotone ph-file-doc ${base} text-blue-500 dark:text-blue-400"></i>`;
+                case 'xlsx': case 'xls': return `<i class="ph-duotone ph-file-xls ${base} text-emerald-500"></i>`;
+                case 'pptx': case 'ppt': return `<i class="ph-duotone ph-file-ppt ${base} text-orange-500"></i>`;
+                case 'image': case 'png': case 'jpg': case 'jpeg': return `<i class="ph-duotone ph-image ${base} text-purple-500 dark:text-purple-400"></i>`;
+                case 'video': case 'mp4': return `<i class="ph-duotone ph-video-camera ${base} text-pink-500"></i>`;
+                default: return `<i class="ph-duotone ph-file ${base} text-slate-400 dark:text-slate-500"></i>`;
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0 || bytes === '') return '-';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function renderBreadcrumb() {
+            const breadcrumbEl = document.getElementById('breadcrumb');
+            let html = `<button onclick="navigateTo('root')" class="hover:text-brand-600 dark:hover:text-brand-400 font-medium flex items-center gap-1 transition-colors"><i class="ph-fill ph-house text-lg"></i> TRANG CHỦ</button>`;
+            
+            let path = [];
+            let current = globalData.find(item => item.id === currentFolderId);
+            
+            while (current && current.id !== 'root') {
+                path.unshift(current);
+                current = globalData.find(item => item.id === current.parent);
+            }
+
+            path.forEach(folder => {
+                html += `<i class="ph ph-caret-right text-slate-400"></i>`;
+                html += `<button onclick="navigateTo('${folder.id}')" class="hover:text-brand-600 dark:hover:text-brand-400 font-medium truncate max-w-[150px] transition-colors" title="${folder.name}">${folder.name}</button>`;
+            });
+
+            breadcrumbEl.innerHTML = html;
+        }
+
+        function navigateTo(folderId) {
+            currentFolderId = folderId;
+            // Xóa tìm kiếm khi chuyển thư mục
+            document.getElementById('searchInput').value = '';
+            currentSearchQuery = '';
+            renderView();
+        }
+
+        function getFilteredAndSortedData() {
+            let data = [];
+
+            // Tìm kiếm
+            if (currentSearchQuery) {
+                data = globalData.filter(item => item.name.toLowerCase().includes(currentSearchQuery));
+            } else {
+                data = globalData.filter(item => item.parent === currentFolderId);
+            }
+
+            // Lọc định dạng
+            if (currentFilterType !== 'all') {
+                if (currentFilterType === 'folder') {
+                    data = data.filter(item => item.type === 'folder');
+                } else if (currentFilterType === 'doc') {
+                     data = data.filter(item => ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(item.type));
+                } else {
+                    data = data.filter(item => item.type === currentFilterType);
+                }
+            }
+
+            // Sắp xếp
+            const sortVal = document.getElementById('sortSelect').value;
+            data.sort((a, b) => {
+                if (a.type === 'folder' && b.type !== 'folder') return -1;
+                if (a.type !== 'folder' && b.type === 'folder') return 1;
+
+                if (sortVal === 'name_asc') return a.name.localeCompare(b.name);
+                if (sortVal === 'name_desc') return b.name.localeCompare(a.name);
+                if (sortVal === 'size_desc') return (Number(b.size) || 0) - (Number(a.size) || 0);
+                if (sortVal === 'size_asc') return (Number(a.size) || 0) - (Number(b.size) || 0);
+                return 0;
+            });
+
+            return data;
+        }
+
+        function renderView() {
+            renderBreadcrumb();
+            const dataToRender = getFilteredAndSortedData();
+            
+            const tbody = document.getElementById('tableBody');
+            const emptyState = document.getElementById('emptyStateTable');
+            const itemCount = document.getElementById('itemCount');
+            const viewTitle = document.getElementById('currentViewTitle');
+            
+            tbody.innerHTML = '';
+            itemCount.textContent = `${dataToRender.length} mục`;
+            
+            if(currentSearchQuery) {
+                viewTitle.textContent = `Kết quả: "${currentSearchQuery}"`;
+            } else {
+                let currentFolder = globalData.find(f => f.id === currentFolderId);
+                viewTitle.textContent = currentFolder ? currentFolder.name : "Tất cả tài liệu";
+            }
+
+            if (dataToRender.length === 0) {
+                emptyState.classList.replace('hidden', 'flex');
+            } else {
+                emptyState.classList.replace('flex', 'hidden');
+                
+                // Thư mục Back (..)
+                if (currentFolderId !== 'root' && !currentSearchQuery) {
+                    let currentFolder = globalData.find(f => f.id === currentFolderId);
+                    let parentId = currentFolder ? currentFolder.parent : 'root';
+                    
+                    const trUp = document.createElement('tr');
+                    trUp.className = "group border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors";
+                    trUp.onclick = () => navigateTo(parentId);
+                    trUp.innerHTML = `
+                        <td class="py-3 px-4 text-center text-slate-400 dark:text-slate-500 text-sm font-bold">..</td>
+                        <td class="py-3 px-4 text-center"><i class="ph-fill ph-folder-open text-2xl text-amber-400/80"></i></td>
+                        <td class="py-3 px-4">
+                            <p class="font-medium text-slate-600 dark:text-slate-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Về thư mục trước</p>
+                        </td>
+                        <td class="py-3 px-4 text-slate-500 dark:text-slate-500 font-medium text-sm">--</td>
+                        <td class="py-3 px-4"></td>
+                    `;
+                    tbody.appendChild(trUp);
+                }
+
+                // Render danh sách
+                dataToRender.forEach((item, index) => {
+                    const tr = document.createElement('tr');
+                    tr.className = "group border-b border-slate-100 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors";
+                    
+                    const isFolder = item.type === 'folder';
+                    const fileDataStr = encodeURIComponent(JSON.stringify(item));
+                    
+                    const rowAction = isFolder ? `onclick="navigateTo('${item.id}')"` : `onclick="openModal('${fileDataStr}')"`;
+
+                    let actionBtnHTML = '';
+                    if (isFolder) {
+                        actionBtnHTML = `<button onclick="event.stopPropagation(); navigateTo('${item.id}')" class="text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 hover:bg-brand-100 dark:hover:bg-brand-800/50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Mở <i class="ph-bold ph-arrow-right"></i></button>`;
+                    } else {
+                         const link = `https://drive.google.com/uc?export=download&confirm=t&id=${item.link}`;
+                         actionBtnHTML = `
+                            <button onclick="event.stopPropagation(); openModal('${fileDataStr}')" class="text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 p-1.5 rounded transition-colors mr-1" title="Xem chi tiết"><i class="ph-duotone ph-info text-xl"></i></button>
+                            <a href="${link}" target="_blank" onclick="event.stopPropagation()" class="text-white bg-brand-600 dark:bg-brand-500 hover:bg-brand-700 dark:hover:bg-brand-600 px-3 py-1.5 rounded text-xs font-semibold shadow-sm transition-colors" title="Tải xuống">Tải về</a>
+                         `;
+                    }
+
+                    tr.innerHTML = `
+                        <td class="py-3 px-4 text-center text-slate-400 dark:text-slate-500 text-xs font-medium cursor-pointer" ${rowAction}>${index + 1}</td>
+                        <td class="py-3 px-4 text-center cursor-pointer" ${rowAction}>${getIcon(item.type)}</td>
+                        <td class="py-3 px-4 max-w-xs md:max-w-md lg:max-w-lg cursor-pointer" ${rowAction}>
+                            <p class="font-medium text-slate-800 dark:text-slate-200 truncate group-hover:text-brand-700 dark:group-hover:text-brand-400 transition-colors">${item.name}</p>
+                            ${isFolder ? `<p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Thư mục hệ thống</p>` : `<p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 uppercase">File ${item.type}</p>`}
+                        </td>
+                        <td class="py-3 px-4 text-slate-600 dark:text-slate-400 text-sm font-medium cursor-pointer" ${rowAction}>${isFolder ? '--' : formatBytes(item.size)}</td>
+                        <td class="py-3 px-4 text-right whitespace-nowrap">
+                            ${actionBtnHTML}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+        }
+
+        // Tối ưu hóa các Event Listeners (Bỏ nút Lọc/Reset)
+        function setupEvents() {
+            let searchTimeout;
+            const searchInput = document.getElementById('searchInput');
+            
+            // Xử lý tìm kiếm
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    currentSearchQuery = e.target.value.trim().toLowerCase();
+                    renderView();
+                }, 300);
+            });
+
+            // Xử lý đổi định dạng
+            document.getElementById('typeFilterSelect').addEventListener('change', (e) => {
+                currentFilterType = e.target.value;
+                renderView();
+            });
+
+            // Xử lý sắp xếp
+            document.getElementById('sortSelect').addEventListener('change', () => {
+                renderView();
+            });
+        }
+
+        function openModal(fileDataStr) {
+            const file = JSON.parse(decodeURIComponent(fileDataStr));
+            
+            document.getElementById('modalFileName').textContent = file.name;
+            document.getElementById('modalFileType').textContent = file.type;
+            document.getElementById('modalFileSize').textContent = formatBytes(file.size);
+            
+            const iconHTML = getIcon(file.type).replace('text-2xl', 'text-4xl'); 
+            document.getElementById('modalIcon').innerHTML = iconHTML;
+            
+            const dlLink = `https://drive.google.com/uc?export=download&confirm=t&id=${file.link}`;
+            document.getElementById('modalDownloadBtn').href = dlLink;
+
+            const modal = document.getElementById('fileModal');
+            modal.classList.remove('hidden');
+            void modal.offsetWidth; 
+            modal.style.opacity = '1';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('fileModal');
+            modal.style.opacity = '0';
+            setTimeout(() => modal.classList.add('hidden'), 300);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEvents();
+            loadData(); 
+        });
+    </script>
+</body>
+</html>
