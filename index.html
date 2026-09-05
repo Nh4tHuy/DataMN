@@ -22,7 +22,7 @@
 
     <script>
         tailwind.config = {
-            darkMode: 'class', // Kích hoạt Dark Mode bằng class
+            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: { sans: ['Inter', 'sans-serif'] },
@@ -70,123 +70,177 @@
         .loading-overlay { backdrop-filter: blur(2px); }
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Animation cho màn hình login */
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body class="antialiased min-h-screen flex flex-col overflow-hidden h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
 
-    <!-- Top Navbar -->
-    <nav class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 h-16 flex items-center justify-between px-6 shrink-0 z-20 shadow-sm relative transition-colors">
-        <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded bg-brand-600 flex items-center justify-center text-white font-bold text-xl shadow">
-                D
-            </div>
-            <div>
-                <h1 class="font-bold text-lg text-slate-800 dark:text-white leading-tight">LƯU TRỮ TÀI LIỆU SỐ</h1>
-                <p class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">Trường Mầm Non Mỹ An</p>
-            </div>
-        </div>
+    <!-- MÀN HÌNH ĐĂNG NHẬP -->
+    <div id="loginScreen" class="fixed inset-0 z-50 bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-4 transition-opacity duration-300">
         
-        <div class="flex items-center gap-4">
-            <!-- Nút chuyển đổi Dark Mode -->
-            <button id="themeToggle" class="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Bật/Tắt Giao diện tối">
-                <i class="ph-duotone ph-moon text-xl dark:hidden"></i>
-                <i class="ph-duotone ph-sun text-xl hidden dark:block"></i>
-            </button>
-        </div>
-    </nav>
+        <!-- Toggle Dark mode trong màn login -->
+        <button id="themeToggleLogin" class="absolute top-6 right-6 w-10 h-10 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+            <i class="ph-duotone ph-moon text-xl dark:hidden"></i>
+            <i class="ph-duotone ph-sun text-xl hidden dark:block"></i>
+        </button>
 
-    <!-- Main App Container (Removed Sidebar) -->
-    <div class="flex flex-1 overflow-hidden">
-        
-        <!-- Content Area (Full Width) -->
-        <main class="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 relative transition-colors w-full">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl p-8 shadow-xl border border-slate-100 dark:border-slate-700 fade-in relative overflow-hidden">
+            <!-- Loading Overlay during Login/Sync -->
+            <div id="loginLoadingOverlay" class="absolute inset-0 bg-white/90 dark:bg-slate-800/90 z-10 flex flex-col items-center justify-center hidden">
+                <i class="ph-duotone ph-spinner-gap text-4xl text-brand-600 spin mb-4"></i>
+                <p class="text-sm font-medium text-slate-600 dark:text-slate-300 text-center px-4" id="loginLoadingText">Đang xác thực...</p>
+            </div>
+
+            <div class="flex justify-center mb-6">
+                <div class="w-16 h-16 bg-brand-100 dark:bg-brand-900/30 rounded-2xl flex items-center justify-center text-brand-600 dark:text-brand-400">
+                    <i class="ph-duotone ph-shield-check text-3xl"></i>
+                </div>
+            </div>
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-bold text-slate-900 dark:text-white mb-2">Đăng nhập Hệ thống</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Vui lòng nhập mật khẩu để truy cập kho tài liệu.</p>
+            </div>
             
-            <!-- Breadcrumb -->
-            <div class="h-14 border-b border-slate-200 dark:border-slate-700 px-6 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-slate-800 transition-colors">
-                <div class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400" id="breadcrumb">
-                    <!-- Sẽ được fill bằng JS -->
-                    <button class="hover:text-brand-600 dark:hover:text-brand-400 font-medium flex items-center gap-1">
-                        <i class="ph-fill ph-house"></i> Trang chủ
-                    </button>
+            <form id="loginForm" class="space-y-4" onsubmit="handleLogin(event)">
+                <div>
+                    <label for="password" class="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Mật khẩu truy cập</label>
+                    <div class="relative">
+                        <i class="ph ph-lock-key absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input type="password" id="password" required placeholder="Nhập mật khẩu..." 
+                               class="w-full pl-10 pr-3 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-600 rounded-xl text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all">
+                    </div>
+                    <p id="loginError" class="text-red-500 text-xs mt-2 hidden flex items-center gap-1"><i class="ph-fill ph-warning-circle"></i> Mật khẩu không chính xác.</p>
                 </div>
-            </div>
-
-            <!-- Table Container -->
-            <div class="flex-1 overflow-auto p-4 sm:p-6 relative max-w-7xl mx-auto w-full">
                 
-                <!-- Loading State -->
-                <div id="loadingOverlay" class="absolute inset-0 bg-white/80 dark:bg-slate-900/80 loading-overlay z-20 flex flex-col items-center justify-center">
-                    <i class="ph-duotone ph-spinner-gap text-4xl text-brand-500 spin mb-3"></i>
-                    <p class="text-slate-600 dark:text-slate-300 font-medium">Đang tải và đồng bộ dữ liệu, vui lòng chờ...</p>
-                </div>
+                <button type="submit" class="w-full bg-brand-600 dark:bg-brand-500 text-white font-semibold py-2.5 rounded-xl hover:bg-brand-700 dark:hover:bg-brand-600 transition-colors flex items-center justify-center gap-2 mt-4 shadow-sm">
+                    Đăng nhập <i class="ph-bold ph-arrow-right"></i>
+                </button>
+            </form>
+        </div>
+        <p class="mt-8 text-xs text-slate-400 dark:text-slate-500 text-center">
+            Trường Mầm Non Mỹ An &copy; 2026
+        </p>
+    </div>
 
-                <div class="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-800 transition-colors">
-                    
-                    <!-- Table Header & Toolbar (New Compact Filters) -->
-                    <div class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div class="flex items-center gap-3">
-                            <h2 class="font-semibold text-slate-800 dark:text-slate-200" id="currentViewTitle">Danh sách tài liệu</h2>
-                            <span class="text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 py-1 px-2 rounded-full" id="itemCount">0 mục</span>
-                        </div>
-                        
-                        <!-- Mini Toolbar (Search, Filter, Sort) -->
-                         <div class="flex flex-wrap items-center gap-2">
-                            <!-- Search -->
-                          <div class="relative flex-grow md:flex-grow-0">
-                                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                                <input type="text" id="searchInput" placeholder="Tìm tên file..." 
-                                       class="w-full md:w-56 pl-9 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-shadow">
-                            </div> 
-                            <!-- Format Filter -->
-                              <select id="typeFilterSelect" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm rounded-lg py-1.5 px-3 focus:outline-none focus:border-brand-500">
-                                <option value="all">Tất cả định dạng</option>
-                                <option value="folder">Thư mục</option>
-                                <option value="pdf">PDF</option>
-                                <option value="doc">Word/Excel/PPT</option>
-                            </select>
-                            <!-- Sort -->
-                             <select id="sortSelect" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm rounded-lg py-1.5 px-3 focus:outline-none focus:border-brand-500 hidden sm:block">
-                                <option value="name_asc">Tên (A-Z)</option>
-                                <option value="name_desc">Tên (Z-A)</option>
-                                <option value="size_desc">Dung lượng lớn</option>
-                                <option value="size_asc">Dung lượng nhỏ</option>
-                            </select> 
-                        </div>
-                    </div>
-                    
-                    <div class="overflow-x-auto min-h-[400px]">
-                        <table class="w-full text-left border-collapse data-table whitespace-nowrap">
-                            <thead>
-                                <tr>
-                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 w-16 text-center">STT</th>
-                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 w-16 text-center">Loại</th>
-                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 min-w-[250px]">Tên tài liệu / Thư mục</th>
-                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">Kích thước</th>
-                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-right">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tableBody" class="text-sm">
-                                <!-- Data rows will be injected here -->
-                            </tbody>
-                        </table>
-                        
-                        <!-- Empty State Table -->
-                        <div id="emptyStateTable" class="hidden flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
-                            <i class="ph-duotone ph-folder-dashed text-5xl mb-3"></i>
-                            <p class="font-medium text-slate-600 dark:text-slate-400">Không có dữ liệu</p>
-                            <p class="text-sm mt-1">Thư mục trống hoặc không tìm thấy kết quả phù hợp.</p>
-                        </div>
-                    </div>
+    <!-- APP CHÍNH (Ẩn đi cho đến khi đăng nhập thành công) -->
+    <div id="mainApp" class="hidden flex-col h-full w-full">
+        <!-- Top Navbar -->
+        <nav class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 h-16 flex items-center justify-between px-6 shrink-0 z-20 shadow-sm relative transition-colors">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded bg-brand-600 flex items-center justify-center text-white font-bold text-xl shadow">
+                    D
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-slate-800 dark:text-white leading-tight">LƯU TRỮ TÀI LIỆU SỐ</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">Trường Mầm Non Mỹ An</p>
                 </div>
             </div>
+            
+            <div class="flex items-center gap-4">
+                <button id="themeToggle" class="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Bật/Tắt Giao diện tối">
+                    <i class="ph-duotone ph-moon text-xl dark:hidden"></i>
+                    <i class="ph-duotone ph-sun text-xl hidden dark:block"></i>
+                </button>
+                
+                <button onclick="logout()" class="text-sm font-medium text-slate-500 hover:text-red-500 dark:text-slate-400 dark:hover:text-red-400 flex items-center gap-1 transition-colors">
+                    <i class="ph-bold ph-sign-out"></i> Thoát
+                </button>
+            </div>
+        </nav>
 
-            <!-- Footer -->
-            <footer class="h-10 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0 transition-colors">
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                    &copy; 2026 Hệ thống Lưu trữ tài liệu số. Bản quyền thuộc <span class="font-medium text-brand-600 dark:text-brand-400">Nh4tHuy</span>.
-                </p>
-            </footer>
-        </main>
+        <!-- Main App Container -->
+        <div class="flex flex-1 overflow-hidden">
+            
+            <!-- Content Area -->
+            <main class="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 relative transition-colors w-full">
+                
+                <!-- Breadcrumb -->
+                <div class="h-14 border-b border-slate-200 dark:border-slate-700 px-6 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-slate-800 transition-colors">
+                    <div class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400" id="breadcrumb">
+                        <!-- Sẽ được fill bằng JS -->
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="flex-1 overflow-auto p-4 sm:p-6 relative max-w-7xl mx-auto w-full">
+                    
+                    <!-- Loading State (For data fetching after login if needed) -->
+                    <div id="loadingOverlay" class="absolute inset-0 bg-white/80 dark:bg-slate-900/80 loading-overlay z-20 flex flex-col items-center justify-center hidden">
+                        <i class="ph-duotone ph-spinner-gap text-4xl text-brand-500 spin mb-3"></i>
+                        <p class="text-slate-600 dark:text-slate-300 font-medium text-center" id="mainLoadingText">Đang đồng bộ dữ liệu với máy chủ...<br/><span class="text-xs text-slate-500 font-normal">Quá trình này có thể mất vài giây</span></p>
+                    </div>
+
+                    <div class="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-800 transition-colors">
+                        
+                        <!-- Table Header & Toolbar -->
+                        <div class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <h2 class="font-semibold text-slate-800 dark:text-slate-200" id="currentViewTitle">Danh sách tài liệu</h2>
+                                <span class="text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 py-1 px-2 rounded-full" id="itemCount">0 mục</span>
+                            </div>
+                            
+                            <!-- Mini Toolbar (Search, Filter, Sort) -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                <!-- Search -->
+                            <div class="relative flex-grow md:flex-grow-0">
+                                    <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                                    <input type="text" id="searchInput" placeholder="Tìm tên file..." 
+                                        class="w-full md:w-56 pl-9 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-shadow">
+                                </div> 
+                                <!-- Format Filter -->
+                                <select id="typeFilterSelect" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm rounded-lg py-1.5 px-3 focus:outline-none focus:border-brand-500">
+                                    <option value="all">Tất cả định dạng</option>
+                                    <option value="folder">Thư mục</option>
+                                    <option value="pdf">PDF</option>
+                                    <option value="doc">Word/Excel/PPT</option>
+                                </select>
+                                <!-- Sort -->
+                                <select id="sortSelect" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm rounded-lg py-1.5 px-3 focus:outline-none focus:border-brand-500 hidden sm:block">
+                                    <option value="name_asc">Tên (A-Z)</option>
+                                    <option value="name_desc">Tên (Z-A)</option>
+                                    <option value="size_desc">Dung lượng lớn</option>
+                                    <option value="size_asc">Dung lượng nhỏ</option>
+                                </select> 
+                            </div>
+                        </div>
+                        
+                        <div class="overflow-x-auto min-h-[400px]">
+                            <table class="w-full text-left border-collapse data-table whitespace-nowrap">
+                                <thead>
+                                    <tr>
+                                        <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 w-16 text-center">STT</th>
+                                        <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 w-16 text-center">Loại</th>
+                                        <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 min-w-[250px]">Tên tài liệu / Thư mục</th>
+                                        <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">Kích thước</th>
+                                        <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-right">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tableBody" class="text-sm">
+                                    <!-- Data rows will be injected here -->
+                                </tbody>
+                            </table>
+                            
+                            <!-- Empty State Table -->
+                            <div id="emptyStateTable" class="hidden flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
+                                <i class="ph-duotone ph-folder-dashed text-5xl mb-3"></i>
+                                <p class="font-medium text-slate-600 dark:text-slate-400">Không có dữ liệu</p>
+                                <p class="text-sm mt-1">Thư mục trống hoặc không tìm thấy kết quả phù hợp.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <footer class="h-10 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0 transition-colors">
+                    <p class="text-xs text-slate-500 dark:text-slate-400">
+                        &copy; 2026 Hệ thống Lưu trữ tài liệu số. Bản quyền thuộc <span class="font-medium text-brand-600 dark:text-brand-400">Nh4tHuy</span>.
+                    </p>
+                </footer>
+            </main>
+        </div>
     </div>
 
     <!-- Modal Xem Thông Tin File -->
@@ -233,27 +287,108 @@
     </div>
 
     <script>
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxRZeIwoHu9XxzO0EqWBIfEwC5reS-2h9iLyQEFGL8rXp30AgtAohk5iO-Ww8-SBrg/exec';
+        // !! QUAN TRỌNG: ĐIỀN URL WEB APP MỚI NHẤT CỦA BẠN VÀO ĐÂY SAU KHI DEPLOY !!
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyTISrlwptJYGpnkzqwwAeuMP3Ne8h1XcxX2iGXWJu7ZHGDon7Mgjd-u7HKpEvJMxkD/exec'; // <-- Thay thế URL này
         
         let globalData = [];
         let currentFolderId = 'root'; 
         let currentSearchQuery = '';
         let currentFilterType = 'all';
+        let isAuthenticated = sessionStorage.getItem('isLoggedIn') === 'true';
 
-        // Xử lý nút Dark Mode
-        document.getElementById('themeToggle').addEventListener('click', () => {
+        // Xử lý nút Dark Mode chung
+        function toggleTheme() {
             document.documentElement.classList.toggle('dark');
             if (document.documentElement.classList.contains('dark')) {
                 localStorage.theme = 'dark';
             } else {
                 localStorage.theme = 'light';
             }
+        }
+        document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+        document.getElementById('themeToggleLogin').addEventListener('click', toggleTheme);
+
+        // Khởi tạo trang
+        document.addEventListener('DOMContentLoaded', () => {
+            if (isAuthenticated) {
+                showMainApp();
+                loadData(); // Tải data sau khi đã vào app
+            } else {
+                document.getElementById('loginScreen').classList.remove('hidden');
+            }
+            setupEvents();
         });
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const inputPassword = document.getElementById('password').value;
+            const errorMsg = document.getElementById('loginError');
+            const loadingOverlay = document.getElementById('loginLoadingOverlay');
+            const loginText = document.getElementById('loginLoadingText');
+            
+            errorMsg.classList.add('hidden');
+            loadingOverlay.classList.remove('hidden');
+            loginText.textContent = "Đang xác thực...";
+
+            try {
+                // CHỈ gọi API để lấy auth (Rất nhanh, không chờ sync)
+                const response = await fetch(`${APPS_SCRIPT_URL}?action=getAuthOnly`, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+                
+                if (!response.ok) throw new Error('Network response was not ok');
+                const authResult = await response.json();
+                
+                if (authResult.status === 'success') {
+                    // Tách chuỗi từ ô I1 thành mảng các mật khẩu (phân cách bởi dấu phẩy) và xóa khoảng trắng dư thừa
+                    const validPasswords = authResult.password.toString().split(',').map(p => p.trim());
+                    
+                    // Kiểm tra xem mật khẩu nhập vào có nằm trong danh sách hợp lệ không
+                    if (validPasswords.includes(inputPassword.trim())) {
+                        // Đăng nhập đúng
+                        sessionStorage.setItem('isLoggedIn', 'true');
+                        isAuthenticated = true;
+                        
+                        document.getElementById('loginScreen').classList.add('opacity-0');
+                        setTimeout(() => {
+                            document.getElementById('loginScreen').classList.add('hidden');
+                            showMainApp();
+                            // Bắt đầu quá trình load và sync data SAU KHI đã vào giao diện chính
+                            loadData(); 
+                        }, 300);
+                        
+                    } else {
+                        // Sai pass
+                        errorMsg.classList.remove('hidden');
+                    }
+                } else {
+                    console.error("Lỗi từ server:", authResult.message);
+                    alert("Có lỗi xảy ra trong quá trình xác thực. Vui lòng thử lại.");
+                }
+            } catch (error) {
+                console.error("Lỗi kết nối:", error);
+                alert("Lỗi kết nối đến máy chủ. Hãy kiểm tra lại đường truyền.");
+            } finally {
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+
+        function showMainApp() {
+            document.getElementById('mainApp').classList.remove('hidden');
+            document.getElementById('mainApp').classList.add('flex');
+        }
+
+        function logout() {
+            sessionStorage.removeItem('isLoggedIn');
+            location.reload();
+        }
 
         async function loadData() {
             try {
                 showLoading(true);
-                const response = await fetch(`${APPS_SCRIPT_URL}?action=getData`, {
+                // Gọi mặc định để lấy data. Phía Apps Script sẽ tự động gọi hàm syncDriveToSheet() trước khi trả về.
+                const response = await fetch(`${APPS_SCRIPT_URL}`, {
                     method: 'GET',
                     mode: 'cors'
                 });
@@ -261,14 +396,19 @@
                 if (!response.ok) throw new Error('Network response was not ok');
                 const rawData = await response.json();
                 
+                if(rawData.status === 'error') {
+                     throw new Error(rawData.message);
+                }
+
                 globalData = rawData.data ? rawData.data : rawData;
                 renderView();
             } catch (error) {
                 console.error("Fetch Data Error:", error);
-                document.querySelector('#loadingOverlay p').textContent = "Lỗi tải dữ liệu. Vui lòng thử lại sau.";
-                document.querySelector('#loadingOverlay p').classList.add('text-red-500');
+                document.querySelector('#mainLoadingText').textContent = "Lỗi tải dữ liệu. Vui lòng tải lại trang.";
+                document.querySelector('#mainLoadingText').classList.add('text-red-500');
                 document.querySelector('.spin').classList.replace('text-brand-500', 'text-red-500');
                 document.querySelector('.spin').classList.replace('ph-spinner-gap', 'ph-warning-circle');
+                document.querySelector('.spin').classList.remove('spin'); // Dừng xoay khi lỗi
             } finally {
                 if(globalData.length > 0) showLoading(false);
             }
@@ -324,7 +464,6 @@
 
         function navigateTo(folderId) {
             currentFolderId = folderId;
-            // Xóa tìm kiếm khi chuyển thư mục
             document.getElementById('searchInput').value = '';
             currentSearchQuery = '';
             renderView();
@@ -449,7 +588,6 @@
             }
         }
 
-        // Tối ưu hóa các Event Listeners (Bỏ nút Lọc/Reset)
         function setupEvents() {
             let searchTimeout;
             const searchInput = document.getElementById('searchInput');
@@ -499,11 +637,6 @@
             modal.style.opacity = '0';
             setTimeout(() => modal.classList.add('hidden'), 300);
         }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            setupEvents();
-            loadData(); 
-        });
     </script>
 </body>
 </html>
