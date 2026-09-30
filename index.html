@@ -4,32 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hệ thống Lưu Trữ Tài Liệu Số</title>
-    <!-- Tailwind CSS -->
+    <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- Phosphor Icons -->
-    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web" defer></script>
+    <link rel="preconnect" href="https://script.google.com" crossorigin>
     <meta name="robots" content="noindex, nofollow"/>
-    <!-- Script kiểm tra Dark Mode ngay lúc load để tránh chớp màn hình -->
+
     <script>
+        // Kiểm tra nhanh theme để tránh giật giao diện
         if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
             document.documentElement.classList.add('dark');
         } else {
             document.documentElement.classList.remove('dark');
         }
-    </script>
 
-    <script>
         tailwind.config = {
-            darkMode: 'class', // Kích hoạt Dark Mode bằng class
+            darkMode: 'class',
             theme: {
                 extend: {
-                    fontFamily: { sans: ['Inter', 'sans-serif'] },
+                    fontFamily: { 
+                        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif']
+                    },
                     colors: {
                         brand: {
                             50: '#eff6ff',
                             100: '#dbeafe',
+                            200: '#bfdbfe',
                             500: '#3b82f6',
                             600: '#2563eb',
                             700: '#1d4ed8',
@@ -41,330 +42,803 @@
     </script>
 
     <style>
-        body {
-            transition: background-color 0.3s, color 0.3s;
-        }
-
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-        
-        /* Dark Mode Scrollbar */
         .dark ::-webkit-scrollbar-thumb { background: #475569; }
-        .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
-        .data-table th {
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        #fileModal {
-            backdrop-filter: blur(4px);
-            transition: opacity 0.3s ease;
-        }
-        #fileModal.hidden { opacity: 0; pointer-events: none; }
-        
-        .loading-overlay { backdrop-filter: blur(2px); }
-        .spin { animation: spin 1s linear infinite; }
+        .spin { animation: spin 0.8s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        mark.search-highlight {
+            background-color: #fef08a;
+            color: #854d0e;
+            font-weight: 700;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        .dark mark.search-highlight {
+            background-color: #854d0e;
+            color: #fef08a;
+        }
+
+        .line-clamp-1 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; }
+        .line-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+        /* Tăng cỡ chữ và độ nổi bật của highlight */
+        mark.search-highlight {
+            background-color: #fef08a;
+            color: #854d0e;
+            font-weight: 800;
+            padding: 1px 4px;
+            border-radius: 4px;
+        }
+
+        #toastContainer {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .toast-msg {
+            background: #0f172a;
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 99px;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            animation: fadeInOut 2.5s forwards;
+        }
+        @keyframes fadeInOut {
+            0% { opacity: 0; transform: translateY(10px); }
+            10% { opacity: 1; transform: translateY(0); }
+            85% { opacity: 1; }
+            100% { opacity: 0; }
+        }
     </style>
 </head>
-<body class="antialiased min-h-screen flex flex-col overflow-hidden h-screen bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200">
+<body class="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 flex flex-col font-sans transition-colors duration-200">
 
-    <!-- Top Navbar -->
-    <nav class="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 h-16 flex items-center justify-between px-6 shrink-0 z-20 shadow-sm relative transition-colors">
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
+
+    <!-- Header tối giản -->
+    <nav class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-30 h-16 px-4 sm:px-8 flex items-center justify-between shadow-xs">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded bg-brand-600 flex items-center justify-center text-white font-bold text-xl shadow">
-                D
+            <div class="w-10 h-10 rounded-xl bg-brand-600 flex items-center justify-center text-white font-bold text-xl shadow-sm">
+                <i class="ph-bold ph-database"></i>
             </div>
             <div>
-                <h1 class="font-bold text-lg text-slate-800 dark:text-white leading-tight">LƯU TRỮ TÀI LIỆU SỐ</h1>
-                <p class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider">Trường Mầm Non Mỹ An</p>
+                <div class="flex items-center gap-2">
+                    <h1 class="font-extrabold text-lg sm:text-xl text-slate-900 dark:text-white leading-none tracking-tight">LƯU TRỮ TÀI LIỆU SỐ</h1>
+                    <span class="text-xs font-bold px-2 py-0.5 rounded bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800">Drive</span>
+                </div>
+                <p class="text-xs sm:text-sm text-slate-500 font-medium">Trường Mầm Non Mỹ An</p>
             </div>
         </div>
-        
-        <div class="flex items-center gap-4">
-            <!-- Nút chuyển đổi Dark Mode -->
-            <button id="themeToggle" class="w-9 h-9 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors" title="Bật/Tắt Giao diện tối">
-                <i class="ph-duotone ph-moon text-xl dark:hidden"></i>
-                <i class="ph-duotone ph-sun text-xl hidden dark:block"></i>
+
+        <div class="flex items-center gap-2.5">
+            <!-- Nút Làm mới -->
+            <button onclick="loadData(true)" title="Cập nhật trực tiếp từ Google Sheet" class="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-semibold flex items-center gap-2 active:scale-95 transition-transform shadow-xs">
+                <i class="ph-bold ph-arrows-clockwise text-brand-600 dark:text-brand-400 text-base" id="refreshIcon"></i>
+                <span class="hidden sm:inline">Làm mới</span>
+            </button>
+
+            <!-- Chuyển đổi View Table / Grid -->
+            <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                <button id="viewBtnTable" onclick="switchViewMode('table')" title="Xem dạng danh sách bảng" class="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 shadow-xs">
+                    <i class="ph-bold ph-list-dashes text-base"></i>
+                </button>
+                <button id="viewBtnGrid" onclick="switchViewMode('grid')" title="Xem dạng lưới ô vuông" class="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-slate-200">
+                    <i class="ph-bold ph-squares-four text-base"></i>
+                </button>
+            </div>
+
+            <!-- Dark Mode Toggle -->
+            <button id="themeToggle" title="Chế độ sáng/tối" class="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center text-lg shadow-xs">
+                <i class="ph-duotone ph-moon dark:hidden"></i>
+                <i class="ph-duotone ph-sun hidden dark:block text-amber-400"></i>
             </button>
         </div>
     </nav>
 
-    <!-- Main App Container (Removed Sidebar) -->
-    <div class="flex flex-1 overflow-hidden">
+    <!-- Main Content Area -->
+    <main class="flex-1 flex flex-col max-w-7xl w-full mx-auto px-3 sm:px-6 py-5">
         
-        <!-- Content Area (Full Width) -->
-        <main class="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 relative transition-colors w-full">
+        <!-- Breadcrumb Bar -->
+      <div class="flex items-center gap-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-2.5 rounded-xl mb-4 overflow-x-auto hide-scrollbar shadow-xs font-medium" id="breadcrumb">
+           
+        </div>
+        <!-- SEARCH & FILTER TOOLBAR -->
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 mb-4 space-y-3.5 shadow-xs">
             
-            <!-- Breadcrumb -->
-            <div class="h-14 border-b border-slate-200 dark:border-slate-700 px-6 flex items-center justify-between shrink-0 bg-slate-50 dark:bg-slate-800 transition-colors">
-                <div class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400" id="breadcrumb">
-                    <!-- Sẽ được fill bằng JS -->
-                    <button class="hover:text-brand-600 dark:hover:text-brand-400 font-medium flex items-center gap-1">
-                        <i class="ph-fill ph-house"></i> Trang chủ
+            <div class="flex flex-col md:flex-row items-stretch md:items-center gap-2.5">
+                <!-- Search Input: Nhập từ khóa, chỉ quét khi bấm nút Tìm kiếm hoặc Enter -->
+                <div class="relative flex-1">
+                    <i class="ph-bold ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-base"></i>
+                    <input type="text" id="searchInput" 
+                           placeholder="Nhập tên tệp tin hoặc từ khóa cần tìm..." 
+                           class="w-full pl-10 pr-9 py-2.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-300 dark:border-slate-700 rounded-xl text-sm sm:text-base text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500 font-medium transition-all">
+                    <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 items-center justify-center text-xs" title="Xóa tìm kiếm (Esc)">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </div>
+
+                <!-- Nút bấm TÌM KIẾM nổi bật -->
+                <button id="searchSubmitBtn" onclick="executeSearch()" 
+                        class="h-11 px-5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all shrink-0">
+                    <i class="ph-bold ph-magnifying-glass text-lg"></i>
+                    <span>Tìm kiếm</span>
+                </button>
+
+                <!-- Bộ chọn phạm vi tìm kiếm & Sắp xếp -->
+                <div class="flex items-center gap-2 shrink-0 flex-wrap">
+                    <!-- Scope Picker (Mặc định: Toàn kho) -->
+                    <div class="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 text-xs sm:text-sm font-semibold">
+                        <button id="scopeGlobalBtn" onclick="setSearchScope('global')" title="Mặc định: Quét tìm trong toàn bộ mọi thư mục" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 font-bold shadow-xs">
+                            🌐 Trong tất cả thư mục
+                        </button>
+                        <button id="scopeCurrentBtn" onclick="setSearchScope('current')" title="Chỉ tìm trong thư mục đang mở" class="px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200">
+                            📁 Chỉ trong thư mục này
+                        </button>
+                    </div>
+
+                    <!-- Sort -->
+                    <select id="sortSelect" class="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs sm:text-sm rounded-xl py-2 px-3 focus:outline-none cursor-pointer font-semibold shadow-xs">
+                        <option value="name_asc" selected>Tên: A-Z</option>
+                        <option value="name_desc">Tên: Z-A</option>
+                        <option value="sheet_order">Thứ tự trong Google Sheet</option>
+                        <option value="size_desc">Dung lượng: Lớn</option>
+                        <option value="size_asc">Dung lượng: Nhỏ</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Hàng lọc nhanh định dạng (Chips) - Cỡ chữ to và dễ chạm -->
+            <div class="flex items-center gap-2 overflow-x-auto hide-scrollbar pt-1" id="filterChipsContainer">
+                <button data-type="all" class="filter-chip active shrink-0 px-3.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-brand-600 text-white shadow-xs">Tất cả</button>
+                <button data-type="folder" class="filter-chip shrink-0 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"><i class="ph-fill ph-folder mr-1.5 text-amber-500 text-base align-text-bottom"></i>Thư mục</button>
+                <button data-type="pdf" class="filter-chip shrink-0 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"><i class="ph-fill ph-file-pdf mr-1.5 text-rose-500 text-base align-text-bottom"></i>PDF</button>
+                <button data-type="word" class="filter-chip shrink-0 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"><i class="ph-fill ph-file-doc mr-1.5 text-blue-500 text-base align-text-bottom"></i>Word</button>
+                <button data-type="excel" class="filter-chip shrink-0 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"><i class="ph-fill ph-file-xls mr-1.5 text-emerald-500 text-base align-text-bottom"></i>Excel</button>
+                <button data-type="ppt" class="filter-chip shrink-0 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"><i class="ph-fill ph-file-ppt mr-1.5 text-orange-500 text-base align-text-bottom"></i>PowerPoint</button>
+                <button data-type="image" class="filter-chip shrink-0 px-3 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200"><i class="ph-fill ph-image mr-1.5 text-purple-500 text-base align-text-bottom"></i>Hình ảnh</button>
+            </div>
+        </div>
+
+        <!-- Trạng thái thống kê -->
+        <div class="flex items-center justify-between text-sm px-1 mb-3">
+            <div class="flex items-center gap-2.5">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100 dark:ring-emerald-950" id="statusPulseDot"></span>
+                <span id="currentViewTitle" class="font-extrabold text-base sm:text-lg text-slate-800 dark:text-slate-100">Đang tải tài liệu...</span>
+                <span id="itemCount" class="font-bold text-xs sm:text-sm px-2 py-0.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300">0 mục</span>
+            </div>
+            <div id="searchNoticeBadge" class="hidden items-center text-xs sm:text-sm text-brand-600 dark:text-brand-400 font-bold truncate max-w-sm">
+                <span id="searchStatusText">Kết quả tìm kiếm</span>
+            </div>
+        </div>
+
+       
+
+            <!-- Error State Container -->
+            <div id="errorStateContainer" class="hidden flex-col items-center justify-center py-16 px-4 rounded-xl bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-900/50 text-center">
+                <div class="w-12 h-12 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-500 flex items-center justify-center text-2xl mb-2">
+                    <i class="ph-bold ph-warning-circle"></i>
+                </div>
+                <h3 class="text-sm font-bold text-slate-800 dark:text-slate-100">Không thể kết nối đến Google Apps Script</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md" id="errorStateDesc">Vui lòng kiểm tra lại kết nối mạng hoặc thử lại.</p>
+                <div class="flex items-center gap-2 mt-4">
+                    <button onclick="loadData(true)" class="px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold shadow-sm flex items-center gap-1.5 active:scale-95">
+                        <i class="ph-bold ph-arrows-clockwise"></i> Thử lại ngay
                     </button>
                 </div>
             </div>
 
-            <!-- Table Container -->
-            <div class="flex-1 overflow-auto p-4 sm:p-6 relative max-w-7xl mx-auto w-full">
-                
-                <!-- Loading State -->
-                <div id="loadingOverlay" class="absolute inset-0 bg-white/80 dark:bg-slate-900/80 loading-overlay z-20 flex flex-col items-center justify-center">
-                    <i class="ph-duotone ph-spinner-gap text-4xl text-brand-500 spin mb-3"></i>
-                    <p class="text-slate-600 dark:text-slate-300 font-medium">Đang tải và đồng bộ dữ liệu, vui lòng chờ...</p>
-                </div>
+            <!-- Empty State -->
+            <div id="emptyStateContainer" class="hidden flex-col items-center justify-center py-16 px-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center">
+                <i class="ph-duotone ph-folder-open text-4xl text-slate-400 mb-2"></i>
+                <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200">Không có tài liệu nào</h3>
+                <p class="text-xs text-slate-400 mt-1 max-w-sm" id="emptyStateDesc">Thư mục trống hoặc từ khóa tìm kiếm không khớp với tài liệu nào.</p>
+                <button onclick="clearSearch()" class="mt-3 px-3 py-1.5 rounded-lg bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 text-xs font-semibold border border-brand-200 dark:border-brand-800">
+                    Xóa tìm kiếm & Hiện lại danh mục
+                </button>
+            </div>
 
-                <div class="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-800 transition-colors">
-                    
-                    <!-- Table Header & Toolbar (New Compact Filters) -->
-                    <div class="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 px-4 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div class="flex items-center gap-3">
-                            <h2 class="font-semibold text-slate-800 dark:text-slate-200" id="currentViewTitle">Danh sách tài liệu</h2>
-                            <span class="text-xs font-medium bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 py-1 px-2 rounded-full" id="itemCount">0 mục</span>
-                        </div>
-                        
-                        <!-- Mini Toolbar (Search, Filter, Sort) -->
-                         <div class="flex flex-wrap items-center gap-2">
-                            <!-- Search -->
-                          <div class="relative flex-grow md:flex-grow-0">
-                                <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
-                                <input type="text" id="searchInput" placeholder="Tìm tên file..." 
-                                       class="w-full md:w-56 pl-9 pr-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-shadow">
-                            </div> 
-                            <!-- Format Filter -->
-                              <select id="typeFilterSelect" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm rounded-lg py-1.5 px-3 focus:outline-none focus:border-brand-500">
-                                <option value="all">Tất cả định dạng</option>
-                                <option value="folder">Thư mục</option>
-                                <option value="pdf">PDF</option>
-                                <option value="doc">Word/Excel/PPT</option>
-                            </select>
-                            <!-- Sort -->
-                             <select id="sortSelect" class="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 text-sm rounded-lg py-1.5 px-3 focus:outline-none focus:border-brand-500 hidden sm:block">
-                                <option value="name_asc">Tên (A-Z)</option>
-                                <option value="name_desc">Tên (Z-A)</option>
-                                <option value="size_desc">Dung lượng lớn</option>
-                                <option value="size_asc">Dung lượng nhỏ</option>
-                            </select> 
-                        </div>
-                    </div>
-                    
-                    <div class="overflow-x-auto min-h-[400px]">
-                        <table class="w-full text-left border-collapse data-table whitespace-nowrap">
-                            <thead>
-                                <tr>
-                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 w-16 text-center">STT</th>
-                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 w-16 text-center">Loại</th>
-                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 min-w-[250px]">Tên tài liệu / Thư mục</th>
-                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">Kích thước</th>
-                                    <th class="py-3 px-4 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 text-right">Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tableBody" class="text-sm">
-                                <!-- Data rows will be injected here -->
-                            </tbody>
-                        </table>
-                        
-                        <!-- Empty State Table -->
-                        <div id="emptyStateTable" class="hidden flex-col items-center justify-center py-20 text-slate-400 dark:text-slate-500">
-                            <i class="ph-duotone ph-folder-dashed text-5xl mb-3"></i>
-                            <p class="font-medium text-slate-600 dark:text-slate-400">Không có dữ liệu</p>
-                            <p class="text-sm mt-1">Thư mục trống hoặc không tìm thấy kết quả phù hợp.</p>
-                        </div>
-                    </div>
+            <!-- Table View: Chữ to, khoảng cách thoáng đãng -->
+            <div id="tableViewWrapper" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xs">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse whitespace-nowrap">
+                        <thead>
+                            <tr class="bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-800 text-xs sm:text-sm font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wide">
+                                <th class="py-3 px-4 w-12 text-center">STT</th>
+                                <th class="py-3 px-3 w-12 text-center">Loại</th>
+                                <th class="py-3 px-4 min-w-[260px]">Tên tệp tin / Thư mục</th>
+                                <th class="py-3 px-4 w-32">Kích thước</th>
+                                <th class="py-3 px-4 w-44 text-right">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="text-sm sm:text-base divide-y divide-slate-100 dark:divide-slate-800">
+                            <!-- Injected rows via JS -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
-            <!-- Footer -->
-            <footer class="h-10 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center shrink-0 transition-colors">
-                <p class="text-xs text-slate-500 dark:text-slate-400">
-                    &copy; 2026 Hệ thống Lưu trữ tài liệu số. Bản quyền thuộc <span class="font-medium text-brand-600 dark:text-brand-400">Nh4tHuy</span>.
-                </p>
-            </footer>
-        </main>
-    </div>
+            <!-- Grid View -->
+            <div id="gridViewWrapper" class="hidden grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <!-- Injected cards via JS -->
+            </div>
 
-    <!-- Modal Xem Thông Tin File -->
-    <div id="fileModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden bg-slate-900/50 dark:bg-black/60">
-        <div class="bg-white dark:bg-slate-800 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative border border-transparent dark:border-slate-700 transition-colors">
-            <div class="h-24 bg-brand-50 dark:bg-slate-900/50 border-b border-brand-100 dark:border-slate-700 relative">
-                <button onclick="closeModal()" class="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors shadow-sm">
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 flex items-center justify-between text-xs sm:text-sm text-slate-500 dark:text-slate-400 font-medium">
+            <p>Trường Mầm Non Mỹ An</p>
+            <p>Nh4tHuy</p>
+        </div>
+    </footer>
+
+    <!-- Modal Chi tiết File -->
+    <div id="fileModal" class="fixed inset-0 z-50 flex items-center justify-center p-3 hidden bg-slate-950/60">
+        <div class="bg-white dark:bg-slate-800 w-full max-w-sm rounded-2xl overflow-hidden shadow-xl border border-slate-200 dark:border-slate-700">
+            <div class="p-4 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Chi tiết tài liệu</span>
+                <button onclick="closeModal()" class="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-xs">
                     <i class="ph-bold ph-x"></i>
                 </button>
             </div>
-            <div class="px-6 pb-6 relative">
-                <div id="modalIcon" class="w-16 h-16 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-4xl shadow-md absolute -top-8 left-6">
-                    <i class="ph-duotone ph-file text-brand-600 dark:text-brand-400"></i>
-                </div>
-                
-                <div class="pt-10">
-                    <h2 id="modalFileName" class="text-xl font-bold text-slate-900 dark:text-white mb-1 break-words">Tên file.pdf</h2>
-                    <p class="text-sm text-brand-600 dark:text-brand-400 font-medium mb-6 flex items-center gap-1">
-                        <i class="ph-fill ph-check-circle"></i> Có thể tải xuống
-                    </p>
-                </div>
-
-                <div class="grid grid-cols-2 gap-3 mb-6">
-                    <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 border border-slate-100 dark:border-slate-600/50">
-                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-1 font-medium">Định dạng</p>
-                        <p id="modalFileType" class="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase">PDF</p>
+            
+            <div class="p-4 space-y-3">
+                <div class="flex items-start gap-3">
+                    <div id="modalIconContainer" class="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shrink-0">
+                        <i class="ph-fill ph-file"></i>
                     </div>
-                    <div class="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-3 border border-slate-100 dark:border-slate-600/50">
-                        <p class="text-xs text-slate-500 dark:text-slate-400 mb-1 font-medium">Dung lượng</p>
-                        <p id="modalFileSize" class="text-sm font-bold text-slate-800 dark:text-slate-200">2.5 MB</p>
+                    <div class="min-w-0 flex-1">
+                        <h2 id="modalFileName" class="text-sm font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug break-words">Tên file</h2>
+                        <span id="modalFileTypeBadge" class="text-[10px] font-bold text-brand-600 dark:text-brand-400">TÀI LIỆU</span>
+                        <div id="modalFolderPath" class="text-[11px] text-slate-400 mt-1 flex items-center gap-1 truncate"></div>
                     </div>
                 </div>
 
-                <div class="flex gap-3">
-                    <button onclick="closeModal()" class="px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
-                        Đóng
+                <div class="grid grid-cols-2 gap-2 p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 text-xs">
+                    <div>
+                        <p class="text-[10px] text-slate-400 uppercase font-semibold">Dung lượng</p>
+                        <p id="modalFileSize" class="font-bold text-slate-800 dark:text-slate-100">--</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-[10px] text-slate-400 uppercase font-semibold">Định dạng</p>
+                        <p id="modalFileExt" class="font-bold text-slate-800 dark:text-slate-100 uppercase">--</p>
+                    </div>
+                </div>
+
+                <div class="flex gap-2 pt-1">
+                    <button onclick="copyFileDownloadLink()" class="py-2 px-3 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 font-semibold text-xs flex items-center justify-center gap-1 hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <i class="ph-bold ph-link"></i> Link
                     </button>
-                    <a id="modalDownloadBtn" href="#" target="_blank" class="flex-1 bg-brand-600 dark:bg-brand-500 text-white py-2.5 rounded-xl font-semibold flex items-center justify-center gap-2 hover:bg-brand-700 dark:hover:bg-brand-600 transition-colors shadow-sm shadow-brand-500/30">
-                        <i class="ph-bold ph-download-simple"></i> Tải Ngay
+                    <button onclick="previewFromModal()" class="flex-1 py-2 px-3 rounded-lg font-bold bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center gap-1 text-xs shadow-xs">
+                        <i class="ph-bold ph-eye"></i> Xem trước
+                    </button>
+                    <a id="modalDownloadBtn" href="#" target="_blank" class="flex-1 py-2 px-3 rounded-lg font-bold bg-brand-600 hover:bg-brand-700 text-white flex items-center justify-center gap-1 text-xs shadow-xs">
+                        <i class="ph-bold ph-download-simple"></i> Tải ngay
                     </a>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Modal Xem Trước Nội Dung Tệp Tin (File Preview Modal) -->
+    <div id="previewModal" class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 hidden bg-slate-950/75 backdrop-blur-xs">
+        <div class="bg-white dark:bg-slate-900 w-full max-w-5xl h-[92vh] rounded-2xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-700 flex flex-col transition-all">
+            <!-- Header Modal Xem Trước -->
+            <div class="p-3 sm:p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/80 flex items-center justify-between gap-3 shrink-0">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div id="previewHeaderIcon" class="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 dark:bg-amber-950/60 dark:text-amber-400 flex items-center justify-center text-xl shrink-0 shadow-xs">
+                        <i class="ph-fill ph-file"></i>
+                    </div>
+                    <div class="min-w-0">
+                        <h3 id="previewTitle" class="text-sm sm:text-base font-bold text-slate-900 dark:text-white truncate">Xem trước tài liệu</h3>
+                        <p id="previewSubtitle" class="text-xs text-slate-500 dark:text-slate-400 truncate">Trình xem trực tuyến</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2 shrink-0">
+                    <!-- Nút mở trong tab mới nếu cần xem toàn trang -->
+                    <a id="previewOpenExternalBtn" href="#" target="_blank" title="Mở trong tab mới" class="h-9 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-semibold flex items-center gap-1.5 shadow-xs transition-colors">
+                        <i class="ph-bold ph-arrow-square-out text-base"></i>
+                        <span class="hidden sm:inline">Mở rộng</span>
+                    </a>
+                    <!-- Nút tải file trực tiếp từ modal -->
+                    <a id="previewDownloadBtn" href="#" target="_blank" title="Tải xuống tệp" class="h-9 px-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm flex items-center gap-1.5 shadow-xs active:scale-95 transition-colors">
+                        <i class="ph-bold ph-download-simple text-base"></i>
+                        <span class="hidden sm:inline">Tải về</span>
+                    </a>
+                    <!-- Nút đóng -->
+                    <button onclick="closePreviewModal()" title="Đóng cửa sổ xem trước (Esc)" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center text-lg active:scale-95 transition-colors">
+                        <i class="ph-bold ph-x"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Nội dung Viewer -->
+            <div class="flex-1 bg-slate-100 dark:bg-slate-950 relative overflow-hidden flex items-center justify-center">
+                <!-- Loader khi iframe hoặc ảnh đang tải -->
+                <div id="previewLoader" class="absolute inset-0 bg-white/90 dark:bg-slate-900/90 flex flex-col items-center justify-center z-10">
+                    <i class="ph-bold ph-spinner text-3xl text-brand-600 spin mb-2"></i>
+                    <p class="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-300">Đang tải tài liệu xem trước...</p>
+                    <p class="text-xs text-slate-400 mt-1">Nếu File quá lớn thì không thể xem trước!</p>
+                </div>
+
+                <!-- Iframe cho PDF, DOCX, XLSX, PPTX -->
+                <iframe id="previewIframe" src="" class="w-full h-full border-0 hidden" allow="autoplay"></iframe>
+
+                <!-- Thẻ hình ảnh nếu file là ảnh -->
+                <div id="previewImageWrapper" class="w-full h-full overflow-auto p-4 hidden flex items-center justify-center">
+                    <img id="previewImage" src="" alt="Xem trước hình ảnh" class="max-w-full max-h-full object-contain rounded-lg shadow-md">
+                </div>
+
+                <!-- Thông báo nếu loại file không hỗ trợ nhúng trực tiếp -->
+                <div id="previewFallback" class="hidden flex-col items-center justify-center text-center p-6">
+                    <div class="w-16 h-16 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-500 flex items-center justify-center text-3xl mb-3 shadow-xs">
+                        <i class="ph-bold ph-file-dashed"></i>
+                    </div>
+                    <h4 class="text-base font-bold text-slate-800 dark:text-slate-100 mb-1">Không thể hiển thị xem trước tệp này</h4>
+                    <p class="text-xs text-slate-500 max-w-sm mb-4">Định dạng tệp này phù hợp hơn khi tải về máy tính để mở bằng phần mềm chuyên dụng.</p>
+                    <a id="previewFallbackDownloadBtn" href="#" target="_blank" class="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm inline-flex items-center gap-2 shadow-xs">
+                        <i class="ph-bold ph-download-simple"></i> Tải về để xem
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
     <script>
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxGykFBrvnfGimHz6fDi3s95DvXNixRtNzxQaS90sClhsJw3jNWmgmeHMG0CKezZF4Y/exec';
-        
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbydwMjQhIB4gOYgyohW9BmVK35eFIswbFu24jwLvETifYuN7KCLeMxFQOIiLIutdLFA/exec';
+
+        // Toàn bộ dữ liệu gốc và chỉ mục trong RAM (KHÔNG sử dụng sessionStorage)
         let globalData = [];
+        let byIdMap = new Map();
+        let folderMap = new Map(); // Lưu danh sách các folder để tra cứu tên thư mục
+        let allValidFolderIds = new Set();
+        
         let currentFolderId = 'root'; 
         let currentSearchQuery = '';
+        let currentSearchScope = 'global'; // Mặc định: Quét toàn bộ mọi thư mục
         let currentFilterType = 'all';
+        let currentViewMode = 'table';
+        let currentActiveModalFile = null;
 
-        // Xử lý nút Dark Mode
+        // Dark Mode
         document.getElementById('themeToggle').addEventListener('click', () => {
             document.documentElement.classList.toggle('dark');
-            if (document.documentElement.classList.contains('dark')) {
-                localStorage.theme = 'dark';
-            } else {
-                localStorage.theme = 'light';
-            }
+            localStorage.theme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
         });
 
-        async function loadData() {
-            try {
-                showLoading(true);
-                const response = await fetch(`${APPS_SCRIPT_URL}?action=getData`, {
-                    method: 'GET',
-                    mode: 'cors'
-                });
+        function showToast(msg, isError = false) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = 'toast-msg';
+            toast.innerHTML = (isError ? '⚠️ ' : '✓ ') + `<span>${msg}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => { if (container.contains(toast)) container.removeChild(toast); }, 2600);
+        }
 
-                if (!response.ok) throw new Error('Network response was not ok');
-                const rawData = await response.json();
+        // Chuyển đổi tiếng Việt không dấu siêu tốc để tìm kiếm chính xác
+        const VI_NORM_REGEX = /[\u0300-\u036f]/g;
+        function removeVietnameseTones(str) {
+            if (!str) return '';
+            return str.normalize('NFD').replace(VI_NORM_REGEX, '').replace(/[đĐ]/g, m => m === 'đ' ? 'd' : 'D');
+        }
+
+        // Chuẩn hóa và lập chỉ mục dữ liệu
+        function processData(rawItems) {
+            globalData = Array.isArray(rawItems) ? rawItems : [];
+            byIdMap.clear();
+            folderMap.clear();
+            allValidFolderIds.clear();
+
+            // Bước 1: Lưu các folder trước để biết ID nào là thư mục hợp lệ
+            for (let i = 0; i < globalData.length; i++) {
+                const item = globalData[i];
+                if (!item) continue;
+                item._originalIndex = i; // Lưu lại thứ tự hàng gốc trong Google Sheet
+                const idStr = String(item.id || item.link || ('idx_' + i)).trim();
+                item._cleanId = idStr;
+                item._name = String(item.name || '').trim();
+                item._searchNorm = removeVietnameseTones(item._name).toLowerCase();
+                item._type = String(item.type || '').toLowerCase().trim();
+
+                byIdMap.set(idStr, item);
+                if (item._type === 'folder') {
+                    folderMap.set(idStr, item._name);
+                    allValidFolderIds.add(idStr);
+                }
+            }
+
+            // Bước 2: Chuẩn hóa thư mục cha của từng mục
+            for (let i = 0; i < globalData.length; i++) {
+                const item = globalData[i];
+                if (!item) continue;
+                let p = item.parent ? String(item.parent).trim() : '';
                 
-                globalData = rawData.data ? rawData.data : rawData;
+                // Nếu p rỗng, là 'root', hoặc p không nằm trong danh sách folder con -> xem như thuộc thư mục gốc 'root'
+                if (!p || p === 'root' || !allValidFolderIds.has(p)) {
+                    item._normParent = 'root';
+                } else {
+                    item._normParent = p;
+                }
+            }
+        }
+
+        // Tải dữ liệu TRỰC TIẾP từ Google Apps Script (Bỏ hoàn toàn cache sessionStorage)
+        async function loadData(forceNotice = false) {
+            const refreshIcon = document.getElementById('refreshIcon');
+            const errorContainer = document.getElementById('errorStateContainer');
+            if (refreshIcon) refreshIcon.classList.add('spin');
+            if (errorContainer) errorContainer.classList.add('hidden');
+            showLoading(true);
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 35000);
+
+            try {
+                let response = null;
+                try {
+                    response = await fetch(`${APPS_SCRIPT_URL}?action=getData`, {
+                        method: 'GET',
+                        mode: 'cors',
+                        signal: controller.signal
+                    });
+                } catch (err1) {
+                    // Thử gọi đường dẫn gốc nếu có tham số chặn
+                    response = await fetch(APPS_SCRIPT_URL, {
+                        method: 'GET',
+                        mode: 'cors',
+                        signal: controller.signal
+                    });
+                }
+                clearTimeout(timeoutId);
+
+                if (!response || !response.ok) throw new Error('Máy chủ Google không phản hồi');
+                
+                const rawJson = await response.json();
+                let items = [];
+                if (Array.isArray(rawJson)) {
+                    items = rawJson;
+                } else if (rawJson && typeof rawJson === 'object') {
+                    items = rawJson.data || rawJson.files || rawJson.items || rawJson.result || [];
+                }
+
+                processData(items);
                 renderView();
+                
+                if (forceNotice) {
+                    showToast("Đã tải dữ liệu mới nhất từ Google Drive!");
+                }
             } catch (error) {
+                clearTimeout(timeoutId);
                 console.error("Fetch Data Error:", error);
-                document.querySelector('#loadingOverlay p').textContent = "Lỗi tải dữ liệu. Vui lòng thử lại sau.";
-                document.querySelector('#loadingOverlay p').classList.add('text-red-500');
-                document.querySelector('.spin').classList.replace('text-brand-500', 'text-red-500');
-                document.querySelector('.spin').classList.replace('ph-spinner-gap', 'ph-warning-circle');
+                
+                if (globalData.length === 0) {
+                    if (errorContainer) errorContainer.classList.remove('hidden');
+                    const viewTitle = document.getElementById('currentViewTitle');
+                    if (viewTitle) viewTitle.textContent = "Không thể tải dữ liệu";
+                    showToast("Lỗi kết nối. Vui lòng bấm Thử lại.", true);
+                } else {
+                    showToast("Không thể làm mới dữ liệu. Đang hiển thị bản hiện tại.", true);
+                }
             } finally {
-                if(globalData.length > 0) showLoading(false);
+                showLoading(false);
+                if (refreshIcon) refreshIcon.classList.remove('spin');
             }
         }
 
         function showLoading(show) {
             const overlay = document.getElementById('loadingOverlay');
-            if(show) overlay.classList.remove('hidden');
-            else overlay.classList.add('hidden');
+            if (overlay) overlay.style.display = show ? 'flex' : 'none';
         }
 
-        function getIcon(type) {
-            const base = "text-2xl";
-            switch(type) {
-                case 'folder': return `<i class="ph-fill ph-folder ${base} text-amber-400"></i>`;
-                case 'pdf': return `<i class="ph-duotone ph-file-pdf ${base} text-rose-500"></i>`;
-                case 'docx': case 'doc': return `<i class="ph-duotone ph-file-doc ${base} text-blue-500 dark:text-blue-400"></i>`;
-                case 'xlsx': case 'xls': return `<i class="ph-duotone ph-file-xls ${base} text-emerald-500"></i>`;
-                case 'pptx': case 'ppt': return `<i class="ph-duotone ph-file-ppt ${base} text-orange-500"></i>`;
-                case 'image': case 'png': case 'jpg': case 'jpeg': return `<i class="ph-duotone ph-image ${base} text-purple-500 dark:text-purple-400"></i>`;
-                case 'video': case 'mp4': return `<i class="ph-duotone ph-video-camera ${base} text-pink-500"></i>`;
-                default: return `<i class="ph-duotone ph-file ${base} text-slate-400 dark:text-slate-500"></i>`;
+        // Thuật toán kiểm tra khớp từ khóa
+        function matchQuery(item, rawQuery) {
+            if (!rawQuery) return { isMatch: true, score: 0 };
+            const queryNorm = removeVietnameseTones(rawQuery).toLowerCase().trim();
+            const tokens = queryNorm.split(/\s+/).filter(Boolean);
+            if (tokens.length === 0) return { isMatch: true, score: 0 };
+
+            const nameNorm = item._searchNorm;
+            const typeNorm = item._type;
+
+            // Tất cả các từ gõ rời rạc đều phải có trong tên file hoặc loại định dạng
+            for (let i = 0; i < tokens.length; i++) {
+                const tok = tokens[i];
+                if (!nameNorm.includes(tok) && !typeNorm.includes(tok)) {
+                    return { isMatch: false, score: 0 };
+                }
+            }
+
+            let score = 10;
+            if (nameNorm === queryNorm) score += 200;
+            else if (nameNorm.startsWith(queryNorm)) score += 100;
+            else if (nameNorm.includes(queryNorm)) score += 50;
+
+            return { isMatch: true, score };
+        }
+
+        // Tô sáng từ khóa tìm kiếm
+        function highlightMatch(text, query) {
+            if (!query || !text) return escapeHtml(text);
+            const queryNorm = removeVietnameseTones(query).toLowerCase().trim();
+            const tokens = queryNorm.split(/\s+/).filter(Boolean);
+            if (tokens.length === 0) return escapeHtml(text);
+
+            const textNorm = removeVietnameseTones(text).toLowerCase();
+            const matches = [];
+
+            tokens.forEach(tok => {
+                let startPos = 0;
+                while ((startPos = textNorm.indexOf(tok, startPos)) !== -1) {
+                    matches.push({ start: startPos, end: startPos + tok.length });
+                    startPos += tok.length;
+                }
+            });
+
+            if (matches.length === 0) return escapeHtml(text);
+
+            matches.sort((a, b) => a.start - b.start);
+            const merged = [];
+            let current = matches[0];
+
+            for (let i = 1; i < matches.length; i++) {
+                const next = matches[i];
+                if (next.start <= current.end) {
+                    current.end = Math.max(current.end, next.end);
+                } else {
+                    merged.push(current);
+                    current = next;
+                }
+            }
+            merged.push(current);
+
+            let result = '';
+            let lastIndex = 0;
+            merged.forEach(m => {
+                result += escapeHtml(text.substring(lastIndex, m.start));
+                result += `<mark class="search-highlight">${escapeHtml(text.substring(m.start, m.end))}</mark>`;
+                lastIndex = m.end;
+            });
+            result += escapeHtml(text.substring(lastIndex));
+            return result;
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function getIconMeta(type) {
+            const t = (type || '').toLowerCase();
+            switch(t) {
+                case 'folder': 
+                    return { icon: 'ph-fill ph-folder', color: 'text-amber-500', bg: 'bg-amber-100 dark:bg-amber-950/40 text-amber-600', badge: 'Thư mục' };
+                case 'pdf': 
+                    return { icon: 'ph-fill ph-file-pdf', color: 'text-rose-500', bg: 'bg-rose-100 dark:bg-rose-950/40 text-rose-600', badge: 'PDF' };
+                case 'docx': case 'doc': 
+                    return { icon: 'ph-fill ph-file-doc', color: 'text-blue-500', bg: 'bg-blue-100 dark:bg-blue-950/40 text-blue-600', badge: 'Word' };
+                case 'xlsx': case 'xls': 
+                    return { icon: 'ph-fill ph-file-xls', color: 'text-emerald-500', bg: 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600', badge: 'Excel' };
+                case 'pptx': case 'ppt': 
+                    return { icon: 'ph-fill ph-file-ppt', color: 'text-orange-500', bg: 'bg-orange-100 dark:bg-orange-950/40 text-orange-600', badge: 'PowerPoint' };
+                case 'image': case 'png': case 'jpg': case 'jpeg': 
+                    return { icon: 'ph-fill ph-image', color: 'text-purple-500', bg: 'bg-purple-100 dark:bg-purple-950/40 text-purple-600', badge: 'Hình ảnh' };
+                default: 
+                    return { icon: 'ph-fill ph-file', color: 'text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800 text-slate-500', badge: 'Tài liệu' };
             }
         }
 
         function formatBytes(bytes) {
             if (!bytes || bytes === 0 || bytes === '') return '-';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const k = 1024, sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
             return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
         }
 
+        function getParentFolderName(parentId) {
+            if (!parentId || parentId === 'root') return 'Trang chủ';
+            return folderMap.get(parentId) || 'Trang chủ';
+        }
+
         function renderBreadcrumb() {
             const breadcrumbEl = document.getElementById('breadcrumb');
-            let html = `<button onclick="navigateTo('root')" class="hover:text-brand-600 dark:hover:text-brand-400 font-medium flex items-center gap-1 transition-colors"><i class="ph-fill ph-house text-lg"></i> TRANG CHỦ</button>`;
-            
-            let path = [];
-            let current = globalData.find(item => item.id === currentFolderId);
-            
-            while (current && current.id !== 'root') {
-                path.unshift(current);
-                current = globalData.find(item => item.id === current.parent);
+            let html = `
+                <button onclick="navigateTo('root')" class="hover:text-brand-600 font-bold flex items-center gap-1.5 text-slate-700 dark:text-slate-300 shrink-0 text-sm">
+                    <i class="ph-fill ph-house text-base"></i> Trang chủ
+                </button>
+            `;
+
+            if (currentSearchQuery) {
+                html += `
+                    <i class="ph-bold ph-caret-right text-slate-400 shrink-0 text-xs"></i>
+                    <span class="font-bold text-brand-600 truncate max-w-[260px] text-sm">Tìm kiếm: "${escapeHtml(currentSearchQuery)}"</span>
+                `;
+            } else if (currentFolderId !== 'root') {
+                let path = [];
+                let currId = currentFolderId;
+                let visited = new Set();
+
+                while (currId && currId !== 'root' && !visited.has(currId)) {
+                    visited.add(currId);
+                    const folderItem = byIdMap.get(currId);
+                    if (folderItem) {
+                        path.unshift(folderItem);
+                        currId = folderItem._normParent;
+                    } else {
+                        break;
+                    }
+                }
+
+                path.forEach(folder => {
+                    html += `<i class="ph-bold ph-caret-right text-slate-400 shrink-0 text-xs"></i>`;
+                    html += `
+                        <button onclick="navigateTo('${folder._cleanId}')" class="hover:text-brand-600 font-semibold truncate max-w-[200px] text-slate-700 dark:text-slate-300 text-sm" title="${escapeHtml(folder.name)}">
+                            ${escapeHtml(folder.name)}
+                        </button>
+                    `;
+                });
             }
-
-            path.forEach(folder => {
-                html += `<i class="ph ph-caret-right text-slate-400"></i>`;
-                html += `<button onclick="navigateTo('${folder.id}')" class="hover:text-brand-600 dark:hover:text-brand-400 font-medium truncate max-w-[150px] transition-colors" title="${folder.name}">${folder.name}</button>`;
-            });
-
             breadcrumbEl.innerHTML = html;
         }
 
         function navigateTo(folderId) {
             currentFolderId = folderId;
-            // Xóa tìm kiếm khi chuyển thư mục
+            currentSearchQuery = '';
             document.getElementById('searchInput').value = '';
+            document.getElementById('clearSearchBtn').classList.add('hidden');
+            renderView();
+        }
+
+        function setSearchScope(scope) {
+            currentSearchScope = scope;
+            const globalBtn = document.getElementById('scopeGlobalBtn');
+            const currentBtn = document.getElementById('scopeCurrentBtn');
+
+            if (scope === 'global') {
+                globalBtn.className = "px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 font-bold shadow-xs";
+                currentBtn.className = "px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-semibold";
+            } else {
+                currentBtn.className = "px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 font-bold shadow-xs";
+                globalBtn.className = "px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-semibold";
+            }
+            if (currentSearchQuery) {
+                renderView();
+            }
+        }
+
+        // Kích hoạt tìm kiếm chỉ khi người dùng bấm nút Tìm kiếm hoặc Enter
+        function executeSearch() {
+            const searchInput = document.getElementById('searchInput');
+            const query = searchInput.value.trim();
+            const clearBtn = document.getElementById('clearSearchBtn');
+
+            if (query) {
+                clearBtn.classList.remove('hidden');
+                clearBtn.classList.add('flex');
+            } else {
+                clearBtn.classList.add('hidden');
+                clearBtn.classList.remove('flex');
+            }
+
+            currentSearchQuery = query;
+            renderView();
+            if (query) {
+                showToast(`Đang quét tìm "${query}"...`);
+            }
+        }
+
+        function clearSearch() {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.value = '';
+            document.getElementById('clearSearchBtn').classList.add('hidden');
             currentSearchQuery = '';
             renderView();
         }
 
         function getFilteredAndSortedData() {
-            let data = [];
+            let list = [];
 
-            // Tìm kiếm
+            // 1. TÌM KIẾM
             if (currentSearchQuery) {
-                data = globalData.filter(item => item.name.toLowerCase().includes(currentSearchQuery));
-            } else {
-                data = globalData.filter(item => item.parent === currentFolderId);
+                // Mặc định: Quét toàn bộ mọi file trong toàn bộ các thư mục
+                const searchSource = currentSearchScope === 'global' ? globalData : globalData.filter(i => i._normParent === currentFolderId);
+                const scoredList = [];
+                for (let i = 0; i < searchSource.length; i++) {
+                    const item = searchSource[i];
+                    const { isMatch, score } = matchQuery(item, currentSearchQuery);
+                    if (isMatch) scoredList.push({ item, score });
+                }
+                scoredList.sort((a, b) => b.score - a.score);
+                list = scoredList.map(s => s.item);
+            } 
+            // 2. DUYỆT THƯ MỤC NGUYÊN BẢN (Hiển thị chính xác thư mục và file thuộc folder hiện tại)
+            else {
+                list = globalData.filter(item => item._normParent === currentFolderId);
             }
 
-            // Lọc định dạng
+            // 3. LỌC LOẠI ĐỊNH DẠNG (Filter Chips)
             if (currentFilterType !== 'all') {
                 if (currentFilterType === 'folder') {
-                    data = data.filter(item => item.type === 'folder');
-                } else if (currentFilterType === 'doc') {
-                     data = data.filter(item => ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(item.type));
-                } else {
-                    data = data.filter(item => item.type === currentFilterType);
+                    list = list.filter(item => item._type === 'folder');
+                } else if (currentFilterType === 'word') {
+                    list = list.filter(item => ['doc', 'docx'].includes(item._type));
+                } else if (currentFilterType === 'excel') {
+                    list = list.filter(item => ['xls', 'xlsx'].includes(item._type));
+                } else if (currentFilterType === 'ppt') {
+                    list = list.filter(item => ['ppt', 'pptx'].includes(item._type));
+                } else if (currentFilterType === 'pdf') {
+                    list = list.filter(item => item._type === 'pdf');
+                } else if (currentFilterType === 'image') {
+                    list = list.filter(item => ['png', 'jpg', 'jpeg', 'image'].includes(item._type));
                 }
             }
 
-            // Sắp xếp
+            // 4. SẮP XẾP CHUẨN GOOGLE DRIVE (Natural sort A-Z, 1-2-10, Folder luôn ở trên)
             const sortVal = document.getElementById('sortSelect').value;
-            data.sort((a, b) => {
-                if (a.type === 'folder' && b.type !== 'folder') return -1;
-                if (a.type !== 'folder' && b.type === 'folder') return 1;
+            list.sort((a, b) => {
+                // Luôn ưu tiên Thư mục lên trước Tệp tin giống hệt giao diện Google Drive
+                const isAFolder = a._type === 'folder';
+                const isBFolder = b._type === 'folder';
+                if (isAFolder && !isBFolder) return -1;
+                if (!isAFolder && isBFolder) return 1;
 
-                if (sortVal === 'name_asc') return a.name.localeCompare(b.name);
-                if (sortVal === 'name_desc') return b.name.localeCompare(a.name);
+                if (sortVal === 'name_asc') {
+                    return a._name.localeCompare(b._name, 'vi', { numeric: true, sensitivity: 'base' });
+                }
+                if (sortVal === 'name_desc') {
+                    return b._name.localeCompare(a._name, 'vi', { numeric: true, sensitivity: 'base' });
+                }
+                if (sortVal === 'sheet_order') {
+                    return (a._originalIndex || 0) - (b._originalIndex || 0);
+                }
                 if (sortVal === 'size_desc') return (Number(b.size) || 0) - (Number(a.size) || 0);
                 if (sortVal === 'size_asc') return (Number(a.size) || 0) - (Number(b.size) || 0);
-                return 0;
+                return (a._originalIndex || 0) - (b._originalIndex || 0);
             });
 
-            return data;
+            return list;
+        }
+
+        function switchViewMode(mode) {
+            currentViewMode = mode;
+            const btnTable = document.getElementById('viewBtnTable');
+            const btnGrid = document.getElementById('viewBtnGrid');
+            const tableWrapper = document.getElementById('tableViewWrapper');
+            const gridWrapper = document.getElementById('gridViewWrapper');
+
+            if (mode === 'table') {
+                btnTable.className = "w-7 h-7 rounded flex items-center justify-center text-xs font-semibold bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 shadow-xs";
+                btnGrid.className = "w-7 h-7 rounded flex items-center justify-center text-xs font-semibold text-slate-500 hover:text-slate-900";
+                tableWrapper.classList.remove('hidden');
+                gridWrapper.classList.add('hidden');
+            } else {
+                btnGrid.className = "w-7 h-7 rounded flex items-center justify-center text-xs font-semibold bg-white dark:bg-slate-700 text-brand-600 dark:text-brand-400 shadow-xs";
+                btnTable.className = "w-7 h-7 rounded flex items-center justify-center text-xs font-semibold text-slate-500 hover:text-slate-900";
+                gridWrapper.classList.remove('hidden');
+                tableWrapper.classList.add('hidden');
+            }
+            renderView();
         }
 
         function renderView() {
@@ -372,137 +846,377 @@
             const dataToRender = getFilteredAndSortedData();
             
             const tbody = document.getElementById('tableBody');
-            const emptyState = document.getElementById('emptyStateTable');
+            const gridContainer = document.getElementById('gridViewWrapper');
+            const emptyState = document.getElementById('emptyStateContainer');
+            const errorContainer = document.getElementById('errorStateContainer');
             const itemCount = document.getElementById('itemCount');
             const viewTitle = document.getElementById('currentViewTitle');
-            
-            tbody.innerHTML = '';
+            const searchNotice = document.getElementById('searchNoticeBadge');
+            const searchStatusText = document.getElementById('searchStatusText');
+
+            if (errorContainer) errorContainer.classList.add('hidden');
             itemCount.textContent = `${dataToRender.length} mục`;
-            
-            if(currentSearchQuery) {
-                viewTitle.textContent = `Kết quả: "${currentSearchQuery}"`;
-            } else {
-                let currentFolder = globalData.find(f => f.id === currentFolderId);
-                viewTitle.textContent = currentFolder ? currentFolder.name : "Tất cả tài liệu";
-            }
 
-            if (dataToRender.length === 0) {
-                emptyState.classList.replace('hidden', 'flex');
+            if (currentSearchQuery) {
+                const scopeTitle = currentSearchScope === 'global' ? 'toàn bộ kho' : 'thư mục này';
+                viewTitle.textContent = `Quét tìm trong ${scopeTitle}`;
+                searchNotice.classList.remove('hidden');
+                searchStatusText.textContent = `Khớp "${currentSearchQuery}"`;
             } else {
-                emptyState.classList.replace('flex', 'hidden');
-                
-                // Thư mục Back (..)
-                if (currentFolderId !== 'root' && !currentSearchQuery) {
-                    let currentFolder = globalData.find(f => f.id === currentFolderId);
-                    let parentId = currentFolder ? currentFolder.parent : 'root';
-                    
-                    const trUp = document.createElement('tr');
-                    trUp.className = "group border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors";
-                    trUp.onclick = () => navigateTo(parentId);
-                    trUp.innerHTML = `
-                        <td class="py-3 px-4 text-center text-slate-400 dark:text-slate-500 text-sm font-bold">..</td>
-                        <td class="py-3 px-4 text-center"><i class="ph-fill ph-folder-open text-2xl text-amber-400/80"></i></td>
-                        <td class="py-3 px-4">
-                            <p class="font-medium text-slate-600 dark:text-slate-400 group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">Về thư mục trước</p>
-                        </td>
-                        <td class="py-3 px-4 text-slate-500 dark:text-slate-500 font-medium text-sm">--</td>
-                        <td class="py-3 px-4"></td>
-                    `;
-                    tbody.appendChild(trUp);
+                if (currentFolderId === 'root') {
+                    viewTitle.textContent = "Thư mục gốc";
+                } else {
+                    const currentFolder = byIdMap.get(currentFolderId);
+                    viewTitle.textContent = currentFolder ? currentFolder.name : "Thư mục con";
                 }
-
-                // Render danh sách
-                dataToRender.forEach((item, index) => {
-                    const tr = document.createElement('tr');
-                    tr.className = "group border-b border-slate-100 dark:border-slate-700 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors";
-                    
-                    const isFolder = item.type === 'folder';
-                    const fileDataStr = encodeURIComponent(JSON.stringify(item));
-                    
-                    const rowAction = isFolder ? `onclick="navigateTo('${item.id}')"` : `onclick="openModal('${fileDataStr}')"`;
-
-                    let actionBtnHTML = '';
-                    if (isFolder) {
-                        actionBtnHTML = `<button onclick="event.stopPropagation(); navigateTo('${item.id}')" class="text-brand-600 dark:text-brand-400 bg-brand-50 dark:bg-brand-900/30 hover:bg-brand-100 dark:hover:bg-brand-800/50 px-3 py-1.5 rounded text-xs font-semibold transition-colors">Mở <i class="ph-bold ph-arrow-right"></i></button>`;
-                    } else {
-                         const link = `https://drive.google.com/uc?export=download&confirm=t&id=${item.link}`;
-                         actionBtnHTML = `
-                            <button onclick="event.stopPropagation(); openModal('${fileDataStr}')" class="text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 p-1.5 rounded transition-colors mr-1" title="Xem chi tiết"><i class="ph-duotone ph-info text-xl"></i></button>
-                            <a href="${link}" target="_blank" onclick="event.stopPropagation()" class="text-white bg-brand-600 dark:bg-brand-500 hover:bg-brand-700 dark:hover:bg-brand-600 px-3 py-1.5 rounded text-xs font-semibold shadow-sm transition-colors" title="Tải xuống">Tải về</a>
-                         `;
-                    }
-
-                    tr.innerHTML = `
-                        <td class="py-3 px-4 text-center text-slate-400 dark:text-slate-500 text-xs font-medium cursor-pointer" ${rowAction}>${index + 1}</td>
-                        <td class="py-3 px-4 text-center cursor-pointer" ${rowAction}>${getIcon(item.type)}</td>
-                        <td class="py-3 px-4 max-w-xs md:max-w-md lg:max-w-lg cursor-pointer" ${rowAction}>
-                            <p class="font-medium text-slate-800 dark:text-slate-200 truncate group-hover:text-brand-700 dark:group-hover:text-brand-400 transition-colors">${item.name}</p>
-                            ${isFolder ? `<p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Thư mục hệ thống</p>` : `<p class="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 uppercase">File ${item.type}</p>`}
-                        </td>
-                        <td class="py-3 px-4 text-slate-600 dark:text-slate-400 text-sm font-medium cursor-pointer" ${rowAction}>${isFolder ? '--' : formatBytes(item.size)}</td>
-                        <td class="py-3 px-4 text-right whitespace-nowrap">
-                            ${actionBtnHTML}
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
+                searchNotice.classList.add('hidden');
             }
+
+            const isInsideFolder = currentFolderId !== 'root' && !currentSearchQuery;
+
+            if (dataToRender.length === 0 && !isInsideFolder) {
+                tbody.innerHTML = '';
+                gridContainer.innerHTML = '';
+                emptyState.classList.replace('hidden', 'flex');
+                return;
+            }
+
+            emptyState.classList.replace('flex', 'hidden');
+
+            let tableHtml = '';
+            let gridHtml = '';
+
+            // Hàng quay lại thư mục cấp trên khi đang ở trong một thư mục con
+            if (isInsideFolder) {
+                const curFolder = byIdMap.get(currentFolderId);
+                const parentId = (curFolder && curFolder._normParent && curFolder._normParent !== currentFolderId) ? curFolder._normParent : 'root';
+
+                tableHtml += `
+                    <tr class="hover:bg-slate-100/70 dark:hover:bg-slate-800/70 cursor-pointer" onclick="navigateTo('${parentId}')">
+                        <td class="py-3 px-4 text-center text-slate-400 font-bold"><i class="ph-bold ph-arrow-bend-up-left text-brand-600 text-lg"></i></td>
+                        <td class="py-3 px-3 text-center"><i class="ph-fill ph-folder-open text-2xl text-amber-500"></i></td>
+                        <td class="py-3 px-4 font-bold text-brand-600 dark:text-brand-400 text-sm sm:text-base">.. [Quay lại thư mục trước]</td>
+                        <td class="py-3 px-4 text-slate-400 font-medium text-sm">--</td>
+                        <td class="py-3 px-4 text-right">
+                            <span class="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs sm:text-sm">Lên một cấp</span>
+                        </td>
+                    </tr>
+                `;
+
+                gridHtml += `
+                    <div class="rounded-2xl p-4 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-brand-500 flex flex-col items-center justify-center cursor-pointer bg-slate-50/50 dark:bg-slate-900/50 min-h-[140px]" onclick="navigateTo('${parentId}')">
+                        <i class="ph-bold ph-arrow-bend-up-left text-3xl text-brand-600 mb-1.5"></i>
+                        <span class="font-bold text-sm text-slate-700 dark:text-slate-200">Quay lại thư mục trước</span>
+                    </div>
+                `;
+            }
+
+            const len = dataToRender.length;
+            for (let i = 0; i < len; i++) {
+                const item = dataToRender[i];
+                const isFolder = item._type === 'folder';
+                const meta = getIconMeta(item._type);
+                const targetId = item.link || item._cleanId;
+                const dlLink = `https://drive.google.com/uc?export=download&confirm=t&id=${targetId}`;
+                const displayName = currentSearchQuery ? highlightMatch(item.name, currentSearchQuery) : escapeHtml(item.name);
+                const parentFolderName = getParentFolderName(item._normParent);
+
+                // Khi tìm kiếm quét toàn kho: hiển thị nhãn vị trí thư mục đang chứa file với cỡ chữ rõ ràng
+                const locationBadge = (currentSearchQuery && currentSearchScope === 'global') ? `
+                    <button onclick="event.stopPropagation(); navigateTo('${item._normParent}')" 
+                            class="text-xs text-slate-500 dark:text-slate-400 hover:text-brand-600 dark:hover:text-brand-400 flex items-center gap-1.5 mt-1 font-medium" 
+                            title="Đi tới thư mục: ${parentFolderName}">
+                        <i class="ph-bold ph-folder text-amber-500 text-sm"></i> Nằm trong thư mục: <span class="underline font-bold text-slate-700 dark:text-slate-200">${escapeHtml(parentFolderName)}</span>
+                    </button>
+                ` : '';
+
+                // Table Row với cỡ chữ to và khoảng cách thoáng
+                tableHtml += `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
+                        <td class="py-3 px-4 text-center text-slate-400 font-semibold text-sm">${i + 1}</td>
+                        <td class="py-3 px-3 text-center"><i class="${meta.icon} text-2xl ${meta.color}"></i></td>
+                        <td class="py-3 px-4">
+                            <div class="max-w-xs sm:max-w-md lg:max-w-2xl py-0.5">
+                                <span class="font-bold text-slate-900 dark:text-slate-100 text-sm sm:text-base truncate block cursor-pointer hover:text-brand-600 transition-colors" 
+                                      onclick="${isFolder ? `navigateTo('${item._cleanId}')` : `openPreviewModal('${item._cleanId}')`}">
+                                    ${displayName}
+                                </span>
+                                ${locationBadge}
+                            </div>
+                        </td>
+                        <td class="py-3 px-4 text-slate-600 dark:text-slate-300 font-semibold text-xs sm:text-sm">${isFolder ? '--' : formatBytes(item.size)}</td>
+                        <td class="py-3 px-4 text-right">
+                            ${isFolder ? `
+                                <button onclick="navigateTo('${item._cleanId}')" class="px-3.5 py-1.5 rounded-xl bg-brand-50 dark:bg-brand-950 text-brand-600 dark:text-brand-400 hover:bg-brand-100 font-bold text-xs sm:text-sm inline-flex items-center gap-1.5 active:scale-95 shadow-xs transition-colors">
+                                    Mở thư mục <i class="ph-bold ph-arrow-right"></i>
+                                </button>
+                            ` : `
+                                <div class="inline-flex items-center gap-1.5">
+                                     <button onclick="openFileDetail('${item._cleanId}')" title="Xem thông tin chi tiết" class="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center active:scale-95 shadow-xs transition-colors">
+                                        <i class="ph-bold ph-info text-sm"></i>
+                                    </button>
+                                    <button onclick="openPreviewModal('${item._cleanId}')" title="Xem trước nội dung file" class="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs sm:text-sm inline-flex items-center gap-1.5 active:scale-95 shadow-xs transition-colors">
+                                        <i class="ph-bold ph-eye text-sm"></i> Xem trước
+                                    </button>
+                                   
+                                    <a href="${dlLink}" target="_blank" title="Tải xuống tệp tin" class="px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm inline-flex items-center gap-1.5 active:scale-95 shadow-xs transition-colors">
+                                        <i class="ph-bold ph-download-simple text-sm"></i> Tải về
+                                    </a>
+                                </div>
+                            `}
+                        </td>
+                    </tr>
+                `;
+
+                // Grid Card
+                gridHtml += `
+                    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex flex-col hover:border-brand-500 hover:shadow-md transition-all">
+                        <div class="flex items-start justify-between gap-2 mb-3">
+                            <div class="w-10 h-10 rounded-xl ${meta.bg} flex items-center justify-center text-2xl shrink-0 shadow-xs">
+                                <i class="${meta.icon}"></i>
+                            </div>
+                            <span class="text-xs font-bold px-2.5 py-1 rounded-lg ${isFolder ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}">
+                                ${isFolder ? 'Thư mục' : formatBytes(item.size)}
+                            </span>
+                        </div>
+                        <h4 class="font-bold text-sm sm:text-base text-slate-900 dark:text-slate-100 line-clamp-2 mb-1.5 leading-snug cursor-pointer hover:text-brand-600 transition-colors" 
+                            onclick="${isFolder ? `navigateTo('${item._cleanId}')` : `openPreviewModal('${item._cleanId}')`}">
+                            ${displayName}
+                        </h4>
+                        ${locationBadge}
+                        <div class="mt-auto pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5">
+                            ${isFolder ? `
+                                <button onclick="navigateTo('${item._cleanId}')" class="w-full py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 active:scale-95 shadow-xs transition-colors">
+                                    Mở thư mục <i class="ph-bold ph-arrow-right"></i>
+                                </button>
+                            ` : `
+                                <button onclick="openPreviewModal('${item._cleanId}')" class="flex-1 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1 active:scale-95 shadow-xs transition-colors">
+                                    <i class="ph-bold ph-eye"></i> Xem trước
+                                </button>
+                                <a href="${dlLink}" target="_blank" class="flex-1 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1 active:scale-95 shadow-xs transition-colors">
+                                    <i class="ph-bold ph-download-simple"></i> Tải về
+                                </a>
+                                <button onclick="openFileDetail('${item._cleanId}')" title="Chi tiết" class="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0 active:scale-95 transition-colors">
+                                    <i class="ph-bold ph-info text-sm"></i>
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }
+
+            tbody.innerHTML = tableHtml;
+            gridContainer.innerHTML = gridHtml;
         }
 
-        // Tối ưu hóa các Event Listeners (Bỏ nút Lọc/Reset)
         function setupEvents() {
-            let searchTimeout;
             const searchInput = document.getElementById('searchInput');
-            
-            // Xử lý tìm kiếm
+            const clearBtn = document.getElementById('clearSearchBtn');
+
+            // Chỉ cập nhật hiển thị nút xóa khi người dùng gõ phím, KHÔNG quét dữ liệu tức thời
             searchInput.addEventListener('input', (e) => {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => {
-                    currentSearchQuery = e.target.value.trim().toLowerCase();
+                const val = e.target.value;
+                if (val.trim()) {
+                    clearBtn.classList.remove('hidden');
+                    clearBtn.classList.add('flex');
+                } else {
+                    clearBtn.classList.add('hidden');
+                    clearBtn.classList.remove('flex');
+                    // Khi người dùng xóa trắng ô tìm kiếm thì khôi phục lại danh mục
+                    if (currentSearchQuery) {
+                        currentSearchQuery = '';
+                        renderView();
+                    }
+                }
+            });
+
+            // Nhấn phím Enter để thực hiện quét tìm kiếm
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    executeSearch();
+                } else if (e.key === 'Escape') {
+                    clearSearch();
+                }
+            });
+
+            // Lọc loại file bằng Chips
+            const chips = document.querySelectorAll('.filter-chip');
+            chips.forEach(chip => {
+                chip.addEventListener('click', (e) => {
+                    chips.forEach(c => {
+                        c.classList.remove('bg-brand-600', 'text-white', 'active');
+                        c.classList.add('bg-slate-100', 'dark:bg-slate-800', 'text-slate-600', 'dark:text-slate-300');
+                    });
+                    const clicked = e.currentTarget;
+                    clicked.classList.remove('bg-slate-100', 'dark:bg-slate-800', 'text-slate-600', 'dark:text-slate-300');
+                    clicked.classList.add('bg-brand-600', 'text-white', 'active');
+                    currentFilterType = clicked.dataset.type;
                     renderView();
-                }, 300);
+                });
             });
 
-            // Xử lý đổi định dạng
-            document.getElementById('typeFilterSelect').addEventListener('change', (e) => {
-                currentFilterType = e.target.value;
-                renderView();
-            });
-
-            // Xử lý sắp xếp
-            document.getElementById('sortSelect').addEventListener('change', () => {
-                renderView();
-            });
+            document.getElementById('sortSelect').addEventListener('change', renderView);
         }
 
-        function openModal(fileDataStr) {
-            const file = JSON.parse(decodeURIComponent(fileDataStr));
-            
+        function openFileDetail(cleanId) {
+            const file = byIdMap.get(cleanId);
+            if (!file) return;
+            currentActiveModalFile = file;
+
+            const meta = getIconMeta(file._type);
             document.getElementById('modalFileName').textContent = file.name;
-            document.getElementById('modalFileType').textContent = file.type;
+            document.getElementById('modalFileTypeBadge').textContent = meta.badge;
             document.getElementById('modalFileSize').textContent = formatBytes(file.size);
-            
-            const iconHTML = getIcon(file.type).replace('text-2xl', 'text-4xl'); 
-            document.getElementById('modalIcon').innerHTML = iconHTML;
-            
-            const dlLink = `https://drive.google.com/uc?export=download&confirm=t&id=${file.link}`;
+            document.getElementById('modalFileExt').textContent = file._type || 'Tập tin';
+
+            const parentName = getParentFolderName(file._normParent);
+            document.getElementById('modalFolderPath').innerHTML = `<i class="ph-bold ph-folder text-amber-500 text-sm"></i> Nằm trong: <span class="font-bold text-slate-800 dark:text-slate-200">${escapeHtml(parentName)}</span>`;
+
+            const iconContainer = document.getElementById('modalIconContainer');
+            iconContainer.className = `w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-xs ${meta.bg}`;
+            iconContainer.innerHTML = `<i class="${meta.icon}"></i>`;
+
+            const targetId = file.link || file._cleanId;
+            const dlLink = `https://drive.google.com/uc?export=download&confirm=t&id=${targetId}`;
             document.getElementById('modalDownloadBtn').href = dlLink;
 
-            const modal = document.getElementById('fileModal');
-            modal.classList.remove('hidden');
-            void modal.offsetWidth; 
-            modal.style.opacity = '1';
+            document.getElementById('fileModal').classList.remove('hidden');
         }
 
         function closeModal() {
-            const modal = document.getElementById('fileModal');
-            modal.style.opacity = '0';
-            setTimeout(() => modal.classList.add('hidden'), 300);
+            document.getElementById('fileModal').classList.add('hidden');
         }
 
+        // Mở popup xem trước nội dung tệp tin trực tiếp
+        function openPreviewModal(cleanId) {
+            const file = byIdMap.get(cleanId);
+            if (!file) return;
+
+            const modal = document.getElementById('previewModal');
+            const iframe = document.getElementById('previewIframe');
+            const imgWrap = document.getElementById('previewImageWrapper');
+            const img = document.getElementById('previewImage');
+            const loader = document.getElementById('previewLoader');
+            const fallback = document.getElementById('previewFallback');
+            const headerIcon = document.getElementById('previewHeaderIcon');
+            const titleEl = document.getElementById('previewTitle');
+            const subTitleEl = document.getElementById('previewSubtitle');
+            const extBtn = document.getElementById('previewOpenExternalBtn');
+            const dlBtn = document.getElementById('previewDownloadBtn');
+            const fallbackDlBtn = document.getElementById('previewFallbackDownloadBtn');
+
+            const fileId = file.link || file._cleanId;
+            const meta = getIconMeta(file._type);
+            const parentName = getParentFolderName(file._normParent);
+
+            titleEl.textContent = file.name;
+            subTitleEl.textContent = `Thư mục: ${parentName} • ${formatBytes(file.size)}`;
+            headerIcon.className = `w-9 h-9 rounded-xl ${meta.bg} flex items-center justify-center text-xl shrink-0 shadow-xs`;
+            headerIcon.innerHTML = `<i class="${meta.icon}"></i>`;
+
+            const downloadUrl = `https://drive.google.com/uc?export=download&confirm=t&id=${fileId}`;
+            const previewUrl = `https://drive.google.com/file/d/${fileId}/preview`;
+
+            dlBtn.href = downloadUrl;
+            fallbackDlBtn.href = downloadUrl;
+            extBtn.href = previewUrl;
+
+            // Reset trạng thái trước khi hiển thị
+            loader.classList.remove('hidden');
+            iframe.classList.add('hidden');
+            imgWrap.classList.add('hidden');
+            fallback.classList.add('hidden');
+            iframe.src = '';
+            img.src = '';
+
+            const t = (file._type || '').toLowerCase();
+            const isImage = ['png', 'jpg', 'jpeg', 'image', 'gif', 'webp'].includes(t);
+
+            if (isImage) {
+                // Đối với file ảnh: hiển thị trực tiếp ảnh
+                img.onload = () => {
+                    loader.classList.add('hidden');
+                    imgWrap.classList.remove('hidden');
+                };
+                img.onerror = () => {
+                    // Nếu không tải trực tiếp được ảnh qua thumbnail, fallback sang iframe Google Drive
+                    iframe.onload = () => {
+                        loader.classList.add('hidden');
+                        iframe.classList.remove('hidden');
+                    };
+                    iframe.src = previewUrl;
+                };
+                img.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
+            } else {
+                // Đối với tài liệu PDF, DOCX, XLSX, PPTX: dùng Google Drive Preview Viewer
+                iframe.onload = () => {
+                    loader.classList.add('hidden');
+                    iframe.classList.remove('hidden');
+                };
+                iframe.src = previewUrl;
+
+                // Đề phòng trường hợp iframe bị chặn hoặc mạng chậm, timeout tắt loader sau 6s
+                setTimeout(() => {
+                    if (!loader.classList.contains('hidden')) {
+                        loader.classList.add('hidden');
+                        iframe.classList.remove('hidden');
+                    }
+                }, 6000);
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closePreviewModal() {
+            const modal = document.getElementById('previewModal');
+            const iframe = document.getElementById('previewIframe');
+            const img = document.getElementById('previewImage');
+            
+            // Xóa src để ngừng tải dữ liệu video/audio/iframe khi đóng
+            iframe.src = '';
+            img.src = '';
+            modal.classList.add('hidden');
+        }
+
+        function previewFromModal() {
+            if (!currentActiveModalFile) return;
+            const fileId = currentActiveModalFile._cleanId;
+            closeModal();
+            openPreviewModal(fileId);
+        }
+
+        function copyFileDownloadLink() {
+            if (!currentActiveModalFile) return;
+            const targetId = currentActiveModalFile.link || currentActiveModalFile._cleanId;
+            const link = `https://drive.google.com/uc?export=download&confirm=t&id=${targetId}`;
+            
+            const temp = document.createElement('input');
+            temp.value = link;
+            document.body.appendChild(temp);
+            temp.select();
+            document.execCommand('copy');
+            document.body.removeChild(temp);
+            showToast("Đã sao chép liên kết tải!");
+        }
+
+        window.onclick = function(e) {
+            if (e.target === document.getElementById('fileModal')) closeModal();
+            if (e.target === document.getElementById('previewModal')) closePreviewModal();
+        };
+
+        // Bổ sung phím tắt Escape để đóng các Modal
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeModal();
+                closePreviewModal();
+            }
+        });
+
+        // Khởi tạo ngay khi tải trang
         document.addEventListener('DOMContentLoaded', () => {
             setupEvents();
-            loadData(); 
+            loadData();
         });
     </script>
 </body>
