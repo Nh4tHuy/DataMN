@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kho Tài Nguyên & Học Liệu Giáo Dục Mầm Non</title>
+    <title>Tài Nguyên Năm Học Mầm Non</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -255,7 +255,7 @@
                         <h1 class="font-extrabold text-lg sm:text-xl text-slate-900 dark:text-white leading-tight tracking-tight">Tài liệu số</h1>
                         <span class="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-700/50">Drive</span>
                     </div>
-                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Kho tài nguyên, kế hoạch & bài giảng điện tử</p>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Kho tài nguyên, kế hoạch theo từng năm học</p>
                 </div>
             </div>
 
@@ -306,7 +306,7 @@
                         TÀI LIỆU SỐ <span class="text-pastel-500">4.0</span>
                     </h2>
                     <p class="text-slate-600 dark:text-slate-300 text-sm sm:text-base mt-2 leading-relaxed font-medium">
-                        Tra cứu kế hoạch, giáo án, tài liệu chuyên môn từ Google Drive.
+                        Tra cứu kế hoạch, giáo án, tài nguyên theo từng năm .
                     </p>
                 </div>
 
@@ -356,16 +356,13 @@
                     <button data-type="image" class="filter-tab shrink-0 px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold transition-all glass-pill text-slate-600 dark:text-slate-300 hover:text-pastel-600 dark:hover:text-white hover:bg-white/80 dark:hover:bg-slate-800/80">
                         <i class="ph-fill ph-image mr-1 text-purple-500 text-base align-middle"></i> Ảnh
                     </button>
-                    <button data-type="other" class="filter-tab shrink-0 px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold transition-all glass-pill text-slate-600 dark:text-slate-300 hover:text-pastel-600 dark:hover:text-white hover:bg-white/80 dark:hover:bg-slate-800/80">
-                        <i class="ph-fill ph-files mr-1 text-slate-400 text-base align-middle"></i> Khác
-                    </button>
                 </div>
 
                 <!-- Thanh Tìm Kiếm CÓ NÚT TÌM KIẾM RIÊNG (Chỉ tìm khi nhấn nút hoặc nhấn Enter) -->
                 <div class="flex items-center gap-2 w-full lg:w-auto shrink-0">
                     <div class="relative flex-1 lg:w-72">
                         <i class="ph ph-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-pastel-500 text-base"></i>
-                        <input type="text" id="searchInput" placeholder="Nhập tên giáo án, bài dạy..." 
+                        <input type="text" id="searchInput" placeholder="Tìm dữ liệu..." 
                                class="w-full pl-10 pr-9 py-2.5 glass-panel rounded-2xl text-sm text-slate-800 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-pastel-400/50 focus:border-pastel-400 transition-all shadow-glass-sm">
                         <button id="clearSearchBtn" onclick="clearSearch()" class="hidden absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full glass-pill hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 items-center justify-center text-xs transition-colors">
                             <i class="ph-bold ph-x"></i>
@@ -471,8 +468,8 @@
                         <i class="ph-bold ph-baby"></i>
                     </div>
                     <div>
-                        <h4 class="font-bold text-sm text-slate-900 dark:text-white">Kho Tài Liệu Số</h4>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">Trường Mầm Non Mỹ An</p>
+                        <h4 class="font-bold text-sm text-slate-900 dark:text-white">Hệ Thống Kho Tài Liệu Số</h4>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Tài nguyên Mầm Non</p>
                     </div>
                 </div>
                 <p class="text-xs text-slate-400 dark:text-slate-500 font-medium">
@@ -612,13 +609,6 @@
 
             <!-- Body Message: Hướng Dẫn Chi Tiết Cách Dùng Web App -->
             <div class="p-6 sm:p-7 space-y-5 max-h-[72vh] overflow-y-auto">
-                
-                <!-- Lời chào & Giới thiệu -->
-                <div class="p-4 rounded-2xl bg-pastel-50/80 dark:bg-pastel-950/50 border border-pastel-200/80 dark:border-pastel-800/60">
-                    <p class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
-                        Đây là hệ thống lưu trữ và tra cứu tài liệu được đồng bộ từ Google Drive.
-                    </p>
-                </div>
 
                 <!-- Các bước hướng dẫn sử dụng -->
                 <div class="space-y-3.5 text-xs sm:text-sm">
@@ -634,7 +624,7 @@
                                 <span>Tìm kiếm nhanh</span>
                             </div>
                             <p class="text-slate-600 dark:text-slate-300 leading-normal text-xs">
-                                Nhập từ khóa tên kế hoạch, biên bản,..., sau đó <b>nhấp nút "Tìm kiếm"</b> hoặc bấm phím <b>Enter</b> để lọc tìm kiếm trên toàn bộ đám mây.
+                                Tại mục <b>Tìm dữ liệu</b> nhập từ khóa cần tìm sau đó <b>nhấp nút "Tìm kiếm"</b> hoặc bấm phím <b>Enter</b> để lọc tìm trên toàn bộ đám mây.
                             </p>
                         </div>
 
@@ -645,7 +635,7 @@
                                 <span>Xem trước không cần tải</span>
                             </div>
                             <p class="text-slate-600 dark:text-slate-300 leading-normal text-xs">
-                                Nhấp vào nút <b>"Xem trước"</b> (màu cam) hoặc bấm trực tiếp vào tên file để mở cửa sổ xem trước để lựa chọn File cần tải.
+                                Nhấp vào nút <b>"Xem trước"</b> (màu cam) hoặc bấm trực tiếp vào tên File để mở cửa sổ xem trước nội .
                             </p>
                         </div>
 
@@ -656,7 +646,7 @@
                                 <span>Đổi chế độ Bảng / Lưới</span>
                             </div>
                             <p class="text-slate-600 dark:text-slate-300 leading-normal text-xs">
-                                Ở góc trên bên phải có nút chuyển <b>Bảng</b> (xem danh sách gọn gàng) và <b>Lưới</b> (xem thẻ trực quan).
+                                Ở góc trên bên phải có nút chuyển <b>Bảng</b> (xem danh sách gọn gàng) và <b>Lưới</b> (xem thẻ trực quan) để lựa chọn.
                             </p>
                         </div>
 
@@ -972,7 +962,7 @@
 
         function renderBreadcrumb() {
             const breadcrumbEl = document.getElementById('breadcrumb');
-            let html = `<button onclick="navigateTo('root')" class="px-3 py-1.5 rounded-xl hover:bg-pastel-100/60 dark:hover:bg-pastel-900/50 text-pastel-600 dark:text-pastel-300 font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap"><i class="ph-bold ph-house-line text-base"></i> Kho Mầm Non</button>`;
+            let html = `<button onclick="navigateTo('root')" class="px-3 py-1.5 rounded-xl hover:bg-pastel-100/60 dark:hover:bg-pastel-900/50 text-pastel-600 dark:text-pastel-300 font-bold flex items-center gap-1.5 transition-colors whitespace-nowrap"><i class="ph-bold ph-house-line text-base"></i> Trang chủ</button>`;
             
             if (currentSearchQuery) {
                 html += `<i class="ph-bold ph-caret-right text-pastel-300 dark:text-pastel-700 shrink-0"></i>`;
